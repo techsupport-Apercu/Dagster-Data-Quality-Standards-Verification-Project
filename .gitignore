@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Dagster local/temp files
+.tmp_dagster_home_*/
+dagster_home/
+.dagster/
+
+# IDE files
+.idea/
+.vscode/
+.qodo/
+
+# OS files
+.DS_Store
+Thumbs.db
