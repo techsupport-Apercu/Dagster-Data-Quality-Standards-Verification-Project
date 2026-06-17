@@ -1,8 +1,14 @@
+README.md
 pyproject.toml
 setup.cfg
 setup.py
+data_quality_checker/__init__.py
+data_quality_checker/assets.py
+data_quality_checker/io_managers.py
+data_quality_checker/schedules.py
 data_quality_checker.egg-info/PKG-INFO
 data_quality_checker.egg-info/SOURCES.txt
 data_quality_checker.egg-info/dependency_links.txt
 data_quality_checker.egg-info/requires.txt
 data_quality_checker.egg-info/top_level.txt
+tests/test_column_shortening.py

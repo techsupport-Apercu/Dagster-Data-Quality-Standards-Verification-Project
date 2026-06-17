@@ -1,0 +1,35 @@
+short_name,original_name
+i,ID
+sect,Sector
+over_sati_with,Overall Satisfaction with Customer Service in Sector
+comp_with_whic,Companies with Which Business Was Conducted in the Last 12 Months
+comp_inte_with,Company Interacted with Most Often
+trus_exte_of,Trust (Extent of Satisfaction)
+prof_exte_of,Professionalism (Extent of Satisfaction)
+bran_bran_outl,"Branches, Branding & Outlook (Extent of Satisfaction)"
+comp_exte_of,Competence (Extent of Satisfaction)
+ease_of_doin,Ease of Doing Business (Extent of Satisfaction)
+proc_and_proc,Processes and Procedures (Extent of Satisfaction)
+cust_focu_inno,Customer-focused Innovations (Extent of Satisfaction)
+enga_with_cust,Engagement with Customers (Extent of Satisfaction)
+orde_of_impo,Order of Importance (OOI) - Trust
+orde_of_impo_1,Order of Importance (OOI) - Professionalism
+orde_of_impo_2,"Order of Importance (OOI) - Branches, Branding & Outlook"
+orde_of_impo_3,Order of Importance (OOI) - Competence
+orde_of_impo_4,Order of Importance (OOI) - Ease of Doing Business
+orde_of_impo_5,Order of Importance (OOI) - Processes and Procedures
+orde_of_impo_6,Order of Importance (OOI) - Customer-focused Innovations
+orde_of_impo_7,Order of Importance (OOI) - Engagement with Customers
+impr_on_cust,Impressions on Customer Service
+pref_of_serv,Preference of Service
+sati_diss,Satisfied/Dissatisfied
+like_to_reco,Likely to Recommend
+mean_of_inte,Means of Interaction
+chan_of_inte,Channels of Interaction
+gend,Gender
+ag,Age
+regi,Region
+high_educ,Highest Education
+inco,Income
+nati,Nationality
+awar_of_surv,Awareness of Survey
