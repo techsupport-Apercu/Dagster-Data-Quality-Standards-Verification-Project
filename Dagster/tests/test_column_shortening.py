@@ -12,6 +12,7 @@ from data_quality_checker.assets import (
     classify_sentiment,
     classify_nps_category,
     clean_comp_inte_with_column,
+    split_channels_of_interaction,
 )
 
 
@@ -132,6 +133,31 @@ class TestStage5NpsOutputs(unittest.TestCase):
         self.assertFalse(stage5["nps_category"].isnull().any())
         allowed_labels = {"promoter", "passive", "detractor"}
         self.assertTrue(set(stage5["nps_category"].unique()).issubset(allowed_labels))
+
+
+class TestStage6ChannelOutputs(unittest.TestCase):
+    def test_split_channels_splits_values_correctly(self):
+        source = pd.DataFrame(
+            {
+                "i": [1, 2, 3],
+                "chan_of_inte": ["In Person, Email", "Website,In Person,", None],
+            }
+        )
+        result = split_channels_of_interaction(source)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(list(result["i"]), [1, 1, 2, 2])
+        self.assertEqual(list(result["chan_of_inte"]), ["In Person", "Email", "Website", "In Person"])
+
+    def test_stage6_on_stage5_file_has_correct_structure(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage5_path = datasets_dir / "clean_stage5" / "stage_5_ouput.csv"
+        stage5 = pd.read_csv(stage5_path)
+
+        result = split_channels_of_interaction(stage5)
+        self.assertTrue(set(["i", "chan_of_inte"]).issubset(result.columns))
+        self.assertEqual(len(result.columns), 2)
+        self.assertFalse(result["chan_of_inte"].isnull().any())
+        self.assertFalse((result["chan_of_inte"] == "").any())
 
 
 if __name__ == "__main__":

@@ -211,3 +211,26 @@ def ncsi_stage_5_output(
 ) -> pd.DataFrame:
     """Stage-5 output with NPS category derived from like_to_reco."""
     return add_nps_category(ncsi_stage_4_output)
+
+
+def split_channels_of_interaction(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Split multi-value chan_of_inte values into separate rows, retaining i as key."""
+    if "chan_of_inte" not in dataframe.columns:
+        raise KeyError("Required column 'chan_of_inte' was not found in input data.")
+    if "i" not in dataframe.columns:
+        raise KeyError("Required column 'i' (Response ID) was not found in input data.")
+
+    df = dataframe[["i", "chan_of_inte"]].dropna(subset=["chan_of_inte"]).copy()
+    df["chan_of_inte"] = df["chan_of_inte"].astype(str).str.split(",")
+    df = df.explode("chan_of_inte")
+    df["chan_of_inte"] = df["chan_of_inte"].str.strip()
+    df = df[df["chan_of_inte"] != ""]
+    return df
+
+
+@asset(metadata={"filename": "clean_stage6/stage_6_ouput.csv"})
+def ncsi_stage_6_output(
+    ncsi_stage_5_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-6 output containing the split channel of interaction values mapped to response IDs."""
+    return split_channels_of_interaction(ncsi_stage_5_output)
