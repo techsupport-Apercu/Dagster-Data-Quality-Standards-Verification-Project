@@ -1,4 +1,13 @@
-# Dagster Data Quality Standards Verification Project
+# Dagster Projects Workspace
+
+This workspace contains two distinct Dagster projects:
+
+1. **Dagster Data Quality Standards Verification Project** (Located at the root of the workspace)
+2. **Dagster NCSI Data Cleaning Pipeline** (Located in the `Dagster/` subdirectory)
+
+---
+
+## 1. Dagster Data Quality Standards Verification Project (Root)
 
 This project implements an automated, schedule-driven **Data Quality Verification** pipeline using **Dagster**. It simulates a production-ready system that cleans incoming raw user data and runs inline checks to ensure the processed data meets strict business and schema requirements.
 
@@ -12,18 +21,14 @@ graph TD
     end
 ```
 
----
+### Key Features
 
-## Key Features
+1. **Software-Defined Assets (SDAs):** The pipeline models data inputs and outputs as explicit assets (`raw_user_signups` and `cleaned_user_signups`).
+2. **Asset Checks:** Native data quality assertions defined alongside the data pipeline to flag anomalies with custom metadata and varying severities (e.g., `WARN` vs. `ERROR`).
+3. **Hourly Schedules:** Automatic execution of jobs to check standards at regular intervals.
+4. **Interactive Web UI:** Visual lineage visualization, run monitoring, scheduling control, and historical data quality tracking.
 
-1.  **Software-Defined Assets (SDAs):** The pipeline models data inputs and outputs as explicit assets (`raw_user_signups` and `cleaned_user_signups`).
-2.  **Asset Checks:** Native data quality assertions defined alongside the data pipeline to flag anomalies with custom metadata and varying severities (e.g., `WARN` vs. `ERROR`).
-3.  **Hourly Schedules:** Automatic execution of jobs to check standards at regular intervals.
-4.  **Interactive Web UI:** Visual lineage visualization, run monitoring, scheduling control, and historical data quality tracking.
-
----
-
-## Project Structure
+### Project Structure (Root)
 
 ```text
 D:\Work\Dagster\
@@ -38,95 +43,101 @@ D:\Work\Dagster\
     └── schedules.py               # Schedule definitions and jobs
 ```
 
----
+### Installation & Setup (Root)
 
-## Installation & Setup
-
-Follow these steps to set up and run the project locally on Windows:
-
-### 1. Prerequisites
-Ensure you have **Python 3.10+** installed on your system.
-
-### 2. Create and Activate Virtual Environment
-Open PowerShell or Command Prompt in the `d:/Work/Dagster` directory:
+Ensure you have **Python 3.10+** installed.
+Open PowerShell in the `d:/Work/Dagster` directory:
 ```powershell
-# Create a virtual environment
 python -m venv .venv
-
-# Activate the virtual environment
-# In PowerShell:
 .\.venv\Scripts\Activate.ps1
-# In CMD:
-.\.venv\Scripts\activate.bat
-```
-
-### 3. Install Dependencies
-Install the required packages in editable mode:
-```powershell
 pip install -e .
 ```
 
----
+### Running the Project (Root)
 
-## Code Overview
-
-### 1. Software-Defined Assets ([assets.py](file:///d:/Work/Dagster/data_quality_checker/assets.py))
-We define two assets:
-*   `raw_user_signups`: Loads mock raw user registrations containing missing IDs, invalid emails, and incorrect negative ages.
-*   `cleaned_user_signups`: Downstream asset that cleans raw inputs by purging missing IDs/emails, correcting ages, and standardizing country strings.
-
-### 2. Standards Verification (Asset Checks)
-Three data quality gates are attached to `cleaned_user_signups`:
-1.  `check_no_null_user_ids` (`ERROR`): Verifies no records contain missing user IDs.
-2.  `check_emails_are_valid` (`ERROR`): Confirms all email addresses are format-compliant (contain `@`).
-3.  `check_age_values` (`WARN`): Assures there are no negative ages.
-
-### 3. Schedules & Jobs ([schedules.py](file:///d:/Work/Dagster/data_quality_checker/schedules.py))
-We define a job `standards_verification_job` which executes materialization of both assets (including checks). This is tied to `hourly_verification_schedule`, which automatically executes the pipeline every hour (`0 * * * *`).
-
----
-
-## Running the Project
-
-### 1. Starting the Dagster UI
-To start the Dagster UI web server locally, run:
+#### Starting the Dagster UI
 ```powershell
 dagster dev
 ```
-By default, the server will launch on [http://127.0.0.1:3000](http://127.0.0.1:3000). 
-Open your web browser and navigate to this URL to view the lineage graphs and logs.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-### 2. Running Programmatic Tests
-To execute the pipeline and inspect verification results directly via Python:
+#### Running Programmatic Tests
 ```powershell
 python -c "from data_quality_checker import defs; from dagster import materialize; materialize(list(defs.assets) + list(defs.asset_checks))"
 ```
 
-> [!TIP]
-> A custom programmatic testing script is provided in the conversation context at:
-> [verify_checks.py](file:///C:/Users/15406/.gemini/antigravity-ide/brain/a863cdf6-2b64-4a48-ba0a-64a644a59da9/scratch/verify_checks.py).
-> You can run it with `python verify_checks.py` to view detailed formatting of check evaluations.
-
 ---
 
-## Deploying Dagster "Online" (Production Guide)
+## 2. Dagster NCSI Data Cleaning Pipeline (Subdirectory)
 
-To run Dagster continuously in a production environment:
+This project transforms an NCSI CSV datadump through a 5-stage cleaning and enrichment pipeline.
 
-### 1. Set Up `DAGSTER_HOME`
-By default, `dagster dev` uses a temporary directory for runs and event records. For production, set the `DAGSTER_HOME` environment variable to a persistent directory:
-```powershell
-[System.Environment]::SetEnvironmentVariable("DAGSTER_HOME", "D:\Work\Dagster\dagster_home", "Machine")
+### Overview
+
+The project reads source data from `Dagster/datasets/datadump.csv` and materializes staged outputs to dedicated folders under `Dagster/datasets/clean_stage*/`.
+
+Pipeline stages:
+1. Stage 1: shorten source column names and generate a data dictionary.
+2. Stage 2: clean comp_inte_with (drop nulls, uppercase values).
+3. Stage 3: build companies dataset and attach company IDs to each row.
+4. Stage 4: analyze sentiment from impr_on_cust using TextBlob.
+5. Stage 5: derive NPS category from like_to_reco.
+
+### Project Structure (Subdirectory)
+
+```text
+Dagster/
+├── README.md
+├── pyproject.toml
+├── requirements.txt
+├── data_quality_checker/
+│   ├── __init__.py
+│   ├── assets.py
+│   ├── io_managers.py
+│   └── schedules.py
+├── datasets/
+│   ├── datadump.csv
+│   ├── clean_stage1/
+│   │   ├── stage_1_ouput.csv
+│   │   └── stage_1_data_dictionary.csv
+│   ├── clean_stage2/
+│   │   └── stage_2_ouput.csv
+│   ├── clean_stage3/
+│   │   ├── companies_dataset.csv
+│   │   └── stage_3_ouput.csv
+│   ├── clean_stage4/
+│   │   └── stage_4_ouput.csv
+│   └── clean_stage5/
+│       └── stage_5_ouput.csv
+└── tests/
+    └── test_column_shortening.py
 ```
-Initialize a `dagster.yaml` file in `DAGSTER_HOME` to configure a permanent DB backend (like PostgreSQL) and run coordination.
 
-### 2. Run Daemon as a Service
-In production, schedules and sensors require the **Dagster Daemon** to be running constantly in the background to poll and trigger runs.
-Run the daemon alongside your webserver:
+### Local Setup (Subdirectory)
+
+1. Navigate to the `Dagster` folder:
 ```powershell
-dagster-daemon run
+cd Dagster
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -e .
 ```
-On Windows, you can wrap `dagster-daemon run` and `dagster-webserver` as Windows Services using utilities like NSSM (Non-Sucking Service Manager).
 
-### 3. Containerization (Docker Setup)
-For cloud deployment, wrap your code in a Docker image using a base `python:3.12-slim` image and run your code locations, daemon, and server in separate containers.
+2. Run Dagster UI:
+```powershell
+dagster dev
+```
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
+
+### Running the Pipeline (Subdirectory)
+
+Materialize all assets:
+```powershell
+python -c "from data_quality_checker import defs; from dagster import materialize; materialize(defs.assets)"
+```
+
+### Running Tests (Subdirectory)
+```powershell
+python -m unittest tests/test_column_shortening.py
+```
