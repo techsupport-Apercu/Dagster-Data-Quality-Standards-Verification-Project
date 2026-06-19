@@ -19,6 +19,10 @@ dagster_home/
 .vscode/
 .qodo/
 
+# Jupyter files
+DataDescription.ipynb
+.ipynb_checkpoints/
+
 # OS files
 .DS_Store
 Thumbs.db

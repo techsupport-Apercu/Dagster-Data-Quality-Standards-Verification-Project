@@ -139,5 +139,8 @@ python -c "from data_quality_checker import defs; from dagster import materializ
 
 ### Running Tests (Subdirectory)
 ```powershell
-python -m unittest tests/test_column_shortening.py
+cd Dagster
+python -m unittest discover -s tests
 ```
+
+All tests must pass before you push.
