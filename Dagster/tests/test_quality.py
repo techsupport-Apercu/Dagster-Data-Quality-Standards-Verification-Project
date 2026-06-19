@@ -160,5 +160,67 @@ class TestStage6ChannelOutputs(unittest.TestCase):
         self.assertFalse((result["chan_of_inte"] == "").any())
 
 
+class TestStage7Output(unittest.TestCase):
+    @staticmethod
+    def _expected_age_category(age_value):
+        normalized_value = str(age_value).strip().replace("–", "-")
+        normalized_value = " ".join(normalized_value.split())
+
+        age_mapping = {
+            "Below 18": "Youth",
+            "18-24": "Young Adults",
+            "18 - 24": "Young Adults",
+            "25-29": "Early Career",
+            "25 - 29": "Early Career",
+            "30-34": "Mid-Level Professionals",
+            "30 - 34": "Mid-Level Professionals",
+            "35-39": "Mid-Career",
+            "35 - 39": "Mid-Career",
+            "40-49": "Experienced Professionals",
+            "40 - 49": "Experienced Professionals",
+            "50-59": "Senior Professionals",
+            "50 - 59": "Senior Professionals",
+            "60+": "Seniors",
+        }
+        return age_mapping.get(normalized_value)
+
+    def test_stage7_output_has_valid_age_categories(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage7_path = datasets_dir / "clean_stage7" / "stage_7_output.csv"
+
+        self.assertTrue(
+            stage7_path.exists(),
+            msg=f"Expected stage 7 output file to exist at '{stage7_path}', but it was not found.",
+        )
+
+        stage7 = pd.read_csv(stage7_path)
+
+        self.assertIn(
+            "age_category",
+            stage7.columns,
+            msg="Expected 'age_category' column to exist in stage_7_output.csv.",
+        )
+        self.assertIn(
+            "ag",
+            stage7.columns,
+            msg="Expected 'ag' column to exist in stage_7_output.csv for age mapping validation.",
+        )
+
+        for row_number, row in enumerate(stage7.itertuples(index=False), start=1):
+            expected_age_category = self._expected_age_category(row.ag)
+            self.assertIsNotNone(
+                expected_age_category,
+                msg=f"Row {row_number}: unsupported ag value '{row.ag}' found in stage_7_output.csv.",
+            )
+            self.assertEqual(
+                expected_age_category,
+                row.age_category,
+                msg=(
+                    f"Row {row_number}: ag='{row.ag}' expected age_category="
+                    f"'{expected_age_category}' but found '{row.age_category}'."
+                ),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
