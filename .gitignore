@@ -12,6 +12,7 @@ ENV/
 .tmp_dagster_home_*/
 dagster_home/
 .dagster/
+*.db
 
 # IDE files
 .idea/
