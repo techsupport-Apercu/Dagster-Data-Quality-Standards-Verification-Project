@@ -16,7 +16,7 @@ from data_quality_checker.assets import (
 )
 
 
-class TestColumnShortening(unittest.TestCase):
+class TestQuality(unittest.TestCase):
     def test_shortened_names_are_shorter_than_original(self):
         datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
         source_path = datasets_dir / "datadump.csv"
