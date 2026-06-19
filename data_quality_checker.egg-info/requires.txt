@@ -1,6 +1,0 @@
-dagster
-dagster-webserver
-pandas
-
-[dev]
-pytest

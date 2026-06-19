@@ -1,8 +1,0 @@
-pyproject.toml
-setup.cfg
-setup.py
-data_quality_checker.egg-info/PKG-INFO
-data_quality_checker.egg-info/SOURCES.txt
-data_quality_checker.egg-info/dependency_links.txt
-data_quality_checker.egg-info/requires.txt
-data_quality_checker.egg-info/top_level.txt
