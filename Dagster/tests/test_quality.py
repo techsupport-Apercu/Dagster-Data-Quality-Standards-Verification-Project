@@ -13,6 +13,10 @@ from data_quality_checker.assets import (
     classify_nps_category,
     clean_comp_inte_with_column,
     split_channels_of_interaction,
+    classify_age_category,
+    add_age_category,
+    classify_income_category,
+    add_income_category,
 )
 
 
@@ -218,6 +222,65 @@ class TestStage7Output(unittest.TestCase):
                 msg=(
                     f"Row {row_number}: ag='{row.ag}' expected age_category="
                     f"'{expected_age_category}' but found '{row.age_category}'."
+                ),
+            )
+
+
+class TestStage8Output(unittest.TestCase):
+    @staticmethod
+    def _expected_income_category(income_value):
+        if pd.isnull(income_value):
+            return "Unknown"
+        text = " ".join(str(income_value).strip().split()).replace("–", "-")
+        income_mapping = {
+            "Unemployed/No Earning As At Now": "No Income / Not Earning",
+            "Student/Dependent": "No Income / Not Earning",
+            "N20,000 - N30,000": "Low Income",
+            "N31,000 - N40,000": "Low Income",
+            "N41,000 - N60,000": "Low Income",
+            "N61,000 - N79,000": "Lower-Middle Income",
+            "N60,000 - N79,000": "Lower-Middle Income",
+            "N80,000 - N99,000": "Lower-Middle Income",
+            "N100,000 - N150,000": "Lower-Middle Income",
+            "N151,000 - N199,000": "Middle-High Income",
+            "N200,000 - N300,000": "Middle-High Income",
+            "N300,000 - N500,000": "Middle-High Income",
+            "N500,000 - N1m": "High Income",
+            "Above N1m": "High Income",
+            "Business Person/Income Not Fixed": "Income not fixed",
+        }
+        return income_mapping.get(text, "Unknown")
+
+    def test_stage8_output_has_valid_income_categories(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage8_path = datasets_dir / "clean_stage8" / "stage_8_output.csv"
+
+        self.assertTrue(
+            stage8_path.exists(),
+            msg=f"Expected stage 8 output file to exist at '{stage8_path}', but it was not found.",
+        )
+
+        stage8 = pd.read_csv(stage8_path)
+
+        self.assertIn(
+            "income_category",
+            stage8.columns,
+            msg="Expected 'income_category' column to exist in stage_8_output.csv.",
+        )
+        self.assertIn(
+            "inco",
+            stage8.columns,
+            msg="Expected 'inco' column to exist in stage_8_output.csv for income mapping validation.",
+        )
+
+        for row_number, row in enumerate(stage8.itertuples(index=False), start=1):
+            expected_income_category = self._expected_income_category(row.inco)
+            self.assertEqual(
+                expected_income_category,
+                row.income_category,
+                msg=(
+                    f"Row {row_number}: inco='{row.inco}' expected income_category="
+                    f"'{expected_income_category}' but found '{row.income_category}'."
                 ),
             )
 

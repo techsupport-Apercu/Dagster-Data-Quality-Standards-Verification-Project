@@ -234,3 +234,92 @@ def ncsi_stage_6_output(
 ) -> pd.DataFrame:
     """Stage-6 output containing the split channel of interaction values mapped to response IDs."""
     return split_channels_of_interaction(ncsi_stage_5_output)
+
+
+def classify_age_category(age_value) -> str:
+    """Map age ranges into broader age categories."""
+    normalized_value = str(age_value).strip().replace("–", "-")
+    normalized_value = " ".join(normalized_value.split())
+
+    age_mapping = {
+        "Below 18": "Youth",
+        "18-24": "Young Adults",
+        "18 - 24": "Young Adults",
+        "25-29": "Early Career",
+        "25 - 29": "Early Career",
+        "30-34": "Mid-Level Professionals",
+        "30 - 34": "Mid-Level Professionals",
+        "35-39": "Mid-Career",
+        "35 - 39": "Mid-Career",
+        "40-49": "Experienced Professionals",
+        "40 - 49": "Experienced Professionals",
+        "50-59": "Senior Professionals",
+        "50 - 59": "Senior Professionals",
+        "60+": "Seniors",
+    }
+    return age_mapping.get(normalized_value)
+
+
+def add_age_category(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Append age_category derived from ag values."""
+    if "ag" not in dataframe.columns:
+        raise KeyError("Required column 'ag' was not found in input data.")
+
+    output = dataframe.copy()
+    output["age_category"] = output["ag"].map(classify_age_category)
+    return output
+
+
+@asset(metadata={"filename": "clean_stage7/stage_7_output.csv"})
+def ncsi_stage_7_output(
+    ncsi_stage_5_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-7 output with age category derived from ag."""
+    return add_age_category(ncsi_stage_5_output)
+
+
+def classify_income_category(value) -> str:
+    """Map income ranges to socioeconomic categories."""
+    if pd.isnull(value):
+        return "Unknown"
+
+    text = " ".join(str(value).strip().split())
+    text = text.replace("–", "-")
+
+    income_mapping = {
+        "Unemployed/No Earning As At Now": "No Income / Not Earning",
+        "Student/Dependent": "No Income / Not Earning",
+        "N20,000 - N30,000": "Low Income",
+        "N31,000 - N40,000": "Low Income",
+        "N41,000 - N60,000": "Low Income",
+        "N61,000 - N79,000": "Lower-Middle Income",
+        "N60,000 - N79,000": "Lower-Middle Income",
+        "N80,000 - N99,000": "Lower-Middle Income",
+        "N100,000 - N150,000": "Lower-Middle Income",
+        "N151,000 - N199,000": "Middle-High Income",
+        "N200,000 - N300,000": "Middle-High Income",
+        "N300,000 - N500,000": "Middle-High Income",
+        "N500,000 - N1m": "High Income",
+        "Above N1m": "High Income",
+        "Business Person/Income Not Fixed": "Income not fixed",
+    }
+    return income_mapping.get(text, "Unknown")
+
+
+def add_income_category(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Append income_category derived from inco values."""
+    if "inco" not in dataframe.columns:
+        raise KeyError("Required column 'inco' was not found in input data.")
+
+    output = dataframe.copy()
+    output["income_category"] = output["inco"].map(classify_income_category)
+    return output
+
+
+@asset(metadata={"filename": "clean_stage8/stage_8_output.csv"})
+def ncsi_stage_8_output(
+    ncsi_stage_7_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-8 output with income category derived from inco."""
+    return add_income_category(ncsi_stage_7_output)
+
