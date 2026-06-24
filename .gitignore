@@ -28,3 +28,7 @@ DataDescription.ipynb
 Thumbs.db
 .ipynb_checkpoints/DataDescription-checkpoint.ipynb
 Dagster/data_quality_checker/__pycache__/assets.cpython-314.pyc
+*.ipynb
+*.pyc
+*.pyc
+*.ipynb

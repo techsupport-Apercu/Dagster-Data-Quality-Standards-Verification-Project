@@ -2,6 +2,7 @@ from pathlib import Path
 import unittest
 
 import pandas as pd
+import pandas.testing as pdt
 
 from data_quality_checker.assets import (
     add_impr_on_cust_sentiment,
@@ -283,6 +284,91 @@ class TestStage8Output(unittest.TestCase):
                     f"'{expected_income_category}' but found '{row.income_category}'."
                 ),
             )
+
+
+class TestStage9Output(unittest.TestCase):
+    DIVIDE_BY_7_COLUMNS = [
+        "over_sati_with",
+        "trus_exte_of",
+        "prof_exte_of",
+        "bran_bran_outl",
+        "comp_exte_of",
+        "ease_of_doin",
+        "proc_and_proc",
+        "cust_focu_inno",
+        "enga_with_cust",
+    ]
+
+    DIVIDE_BY_8_COLUMNS = [
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    ]
+
+    @staticmethod
+    def _to_numeric(series: pd.Series) -> pd.Series:
+        return pd.to_numeric(series, errors="coerce")
+
+    def _assert_percentage_conversion(
+        self,
+        stage8: pd.DataFrame,
+        stage9: pd.DataFrame,
+        columns: list[str],
+        divisor: int,
+    ) -> None:
+        for column in columns:
+            self.assertIn(column, stage8.columns, msg=f"Expected '{column}' to exist in stage_8_output.csv.")
+            self.assertIn(column, stage9.columns, msg=f"Expected '{column}' to exist in stage_9_output.csv.")
+
+            original = self._to_numeric(stage8[column])
+            actual = self._to_numeric(stage9[column])
+            expected = (original / divisor) * 100
+
+            pdt.assert_series_equal(
+                actual,
+                expected,
+                check_names=False,
+                check_exact=False,
+                rtol=1e-9,
+                atol=1e-9,
+                obj=f"Percentage conversion mismatch for '{column}'",
+            )
+
+    def test_stage9_output_has_expected_percentage_conversions(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage8_path = datasets_dir / "clean_stage8" / "stage_8_output.csv"
+        stage9_path = datasets_dir / "clean_stage9" / "stage_9_output.csv"
+
+        self.assertTrue(
+            stage8_path.exists(),
+            msg=f"Expected stage 8 output file to exist at '{stage8_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage9_path.name,
+            "stage_9_output.csv",
+            msg="Expected Stage 9 final output to be labeled as 'stage_9_output.csv'.",
+        )
+        self.assertTrue(
+            stage9_path.exists(),
+            msg=f"Expected stage 9 output file to exist at '{stage9_path}', but it was not found.",
+        )
+
+        stage8 = pd.read_csv(stage8_path)
+        stage9 = pd.read_csv(stage9_path)
+
+        self.assertEqual(
+            len(stage9),
+            len(stage8),
+            msg="Expected stage_9_output.csv to preserve the same number of rows as stage_8_output.csv.",
+        )
+
+        self._assert_percentage_conversion(stage8, stage9, self.DIVIDE_BY_7_COLUMNS, divisor=7)
+        self._assert_percentage_conversion(stage8, stage9, self.DIVIDE_BY_8_COLUMNS, divisor=8)
 
 
 if __name__ == "__main__":
