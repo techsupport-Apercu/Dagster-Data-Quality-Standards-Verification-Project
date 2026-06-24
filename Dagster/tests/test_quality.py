@@ -371,5 +371,233 @@ class TestStage9Output(unittest.TestCase):
         self._assert_percentage_conversion(stage8, stage9, self.DIVIDE_BY_8_COLUMNS, divisor=8)
 
 
+class TestStage10Output(unittest.TestCase):
+    OOI_COLUMNS = [
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    ]
+
+    def test_stage10_output_matches_expected_company_attribute_averages(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage8_path = datasets_dir / "clean_stage8" / "stage_8_output.csv"
+        stage10_path = datasets_dir / "clean_stage10" / "stage_10_output.csv"
+
+        self.assertTrue(
+            stage8_path.exists(),
+            msg=f"Expected stage 8 output file to exist at '{stage8_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage10_path.name,
+            "stage_10_output.csv",
+            msg="Expected Stage 10 final output to be labeled as 'stage_10_output.csv'.",
+        )
+        self.assertTrue(
+            stage10_path.exists(),
+            msg=f"Expected stage 10 output file to exist at '{stage10_path}', but it was not found.",
+        )
+
+        stage8 = pd.read_csv(stage8_path)
+        stage10 = pd.read_csv(stage10_path)
+
+        self.assertListEqual(
+            list(stage10.columns),
+            ["comp_inte_with", "attribute", "value"],
+            msg="Expected stage_10_output.csv to strictly follow columns: comp_inte_with, attribute, value.",
+        )
+
+        expected = (
+            stage8[["comp_inte_with", *self.OOI_COLUMNS]]
+            .groupby("comp_inte_with", as_index=False)
+            .mean(numeric_only=True)
+            .melt(
+                id_vars=["comp_inte_with"],
+                value_vars=self.OOI_COLUMNS,
+                var_name="attribute",
+                value_name="value",
+            )
+        )
+
+        self.assertEqual(
+            len(stage10),
+            len(expected),
+            msg="Expected one Stage 10 row per company and per order-of-importance attribute.",
+        )
+        self.assertSetEqual(set(stage10["attribute"].unique()), set(self.OOI_COLUMNS))
+
+        actual_sorted = stage10.sort_values(["comp_inte_with", "attribute"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["comp_inte_with", "attribute"]).reset_index(drop=True)
+
+        actual_sorted["value"] = pd.to_numeric(actual_sorted["value"], errors="coerce")
+        expected_sorted["value"] = pd.to_numeric(expected_sorted["value"], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 10 output mismatch",
+        )
+
+
+class TestStage11Output(unittest.TestCase):
+    def test_stage11_output_matches_expected_response_statistics(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage8_path = datasets_dir / "clean_stage8" / "stage_8_output.csv"
+        stage11_path = datasets_dir / "clean_stage11" / "stage_11_output.csv"
+
+        self.assertTrue(
+            stage8_path.exists(),
+            msg=f"Expected stage 8 output file to exist at '{stage8_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage11_path.name,
+            "stage_11_output.csv",
+            msg="Expected Stage 11 final output to be labeled as 'stage_11_output.csv'.",
+        )
+        self.assertTrue(
+            stage11_path.exists(),
+            msg=f"Expected stage 11 output file to exist at '{stage11_path}', but it was not found.",
+        )
+
+        stage8 = pd.read_csv(stage8_path)
+        stage11 = pd.read_csv(stage11_path)
+
+        self.assertListEqual(
+            list(stage11.columns),
+            [
+                "company_name",
+                "sector",
+                "count_of_responses",
+                "count_of_promoters",
+                "count_of_detrators",
+                "count_of_passives",
+                "nps_score",
+            ],
+            msg=(
+                "Expected stage_11_output.csv to strictly follow columns: "
+                "company_name, sector, count_of_responses, count_of_promoters, "
+                "count_of_detrators, count_of_passives, nps_score."
+            ),
+        )
+
+        expected = (
+            stage8.assign(
+                is_promoter=(stage8["nps_category"] == "promoter").astype(int),
+                is_detractor=(stage8["nps_category"] == "detractor").astype(int),
+                is_passive=(stage8["nps_category"] == "passive").astype(int),
+            )
+            .groupby(["comp_inte_with", "sect"], as_index=False)
+            .agg(
+                count_of_responses=("nps_category", "size"),
+                count_of_promoters=("is_promoter", "sum"),
+                count_of_detrators=("is_detractor", "sum"),
+                count_of_passives=("is_passive", "sum"),
+            )
+            .rename(columns={"comp_inte_with": "company_name", "sect": "sector"})
+        )
+
+        expected["nps_score"] = (
+            (expected["count_of_promoters"] / expected["count_of_responses"] * 100)
+            - (expected["count_of_detrators"] / expected["count_of_responses"] * 100)
+        )
+
+        self.assertEqual(
+            len(stage11),
+            len(expected),
+            msg="Expected one Stage 11 output row per company and sector.",
+        )
+
+        actual_sorted = stage11.sort_values(["company_name", "sector"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["company_name", "sector"]).reset_index(drop=True)
+
+        numeric_columns = [
+            "count_of_responses",
+            "count_of_promoters",
+            "count_of_detrators",
+            "count_of_passives",
+            "nps_score",
+        ]
+        for column in numeric_columns:
+            actual_sorted[column] = pd.to_numeric(actual_sorted[column], errors="coerce")
+            expected_sorted[column] = pd.to_numeric(expected_sorted[column], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 11 output mismatch",
+        )
+
+
+class TestStage12Output(unittest.TestCase):
+    def test_stage12_output_matches_expected_region_counts(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage8_path = datasets_dir / "clean_stage8" / "stage_8_output.csv"
+        stage12_path = datasets_dir / "clean_stage12" / "stage_12_output.csv"
+
+        self.assertTrue(
+            stage8_path.exists(),
+            msg=f"Expected stage 8 output file to exist at '{stage8_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage12_path.name,
+            "stage_12_output.csv",
+            msg="Expected Stage 12 final output to be labeled as 'stage_12_output.csv'.",
+        )
+        self.assertTrue(
+            stage12_path.exists(),
+            msg=f"Expected stage 12 output file to exist at '{stage12_path}', but it was not found.",
+        )
+
+        stage8 = pd.read_csv(stage8_path)
+        stage12 = pd.read_csv(stage12_path)
+
+        self.assertListEqual(
+            list(stage12.columns),
+            ["State", "Count"],
+            msg="Expected stage_12_output.csv to strictly follow columns: State, Count.",
+        )
+
+        expected = (
+            stage8.groupby("regi", dropna=False)
+            .size()
+            .reset_index(name="Count")
+            .rename(columns={"regi": "State"})
+        )
+
+        self.assertEqual(
+            len(stage12),
+            len(expected),
+            msg="Expected one Stage 12 output row per unique regi value from Stage 8.",
+        )
+
+        actual_sorted = stage12.sort_values(["State"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["State"]).reset_index(drop=True)
+
+        actual_sorted["Count"] = pd.to_numeric(actual_sorted["Count"], errors="coerce")
+        expected_sorted["Count"] = pd.to_numeric(expected_sorted["Count"], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 12 output mismatch",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
