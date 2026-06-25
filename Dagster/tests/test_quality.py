@@ -407,8 +407,8 @@ class TestStage10Output(unittest.TestCase):
 
         self.assertListEqual(
             list(stage10.columns),
-            ["comp_inte_with", "attribute", "value"],
-            msg="Expected stage_10_output.csv to strictly follow columns: comp_inte_with, attribute, value.",
+            ["comp_inte_with", "Attribute", "Average_score"],
+            msg="Expected stage_10_output.csv to strictly follow columns: comp_inte_with, Attribute, Average_score.",
         )
 
         expected = (
@@ -418,8 +418,8 @@ class TestStage10Output(unittest.TestCase):
             .melt(
                 id_vars=["comp_inte_with"],
                 value_vars=self.OOI_COLUMNS,
-                var_name="attribute",
-                value_name="value",
+                var_name="Attribute",
+                value_name="Average_score",
             )
         )
 
@@ -428,13 +428,13 @@ class TestStage10Output(unittest.TestCase):
             len(expected),
             msg="Expected one Stage 10 row per company and per order-of-importance attribute.",
         )
-        self.assertSetEqual(set(stage10["attribute"].unique()), set(self.OOI_COLUMNS))
+        self.assertSetEqual(set(stage10["Attribute"].unique()), set(self.OOI_COLUMNS))
 
-        actual_sorted = stage10.sort_values(["comp_inte_with", "attribute"]).reset_index(drop=True)
-        expected_sorted = expected.sort_values(["comp_inte_with", "attribute"]).reset_index(drop=True)
+        actual_sorted = stage10.sort_values(["comp_inte_with", "Attribute"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["comp_inte_with", "Attribute"]).reset_index(drop=True)
 
-        actual_sorted["value"] = pd.to_numeric(actual_sorted["value"], errors="coerce")
-        expected_sorted["value"] = pd.to_numeric(expected_sorted["value"], errors="coerce")
+        actual_sorted["Average_score"] = pd.to_numeric(actual_sorted["Average_score"], errors="coerce")
+        expected_sorted["Average_score"] = pd.to_numeric(expected_sorted["Average_score"], errors="coerce")
 
         pdt.assert_frame_equal(
             actual_sorted,
@@ -477,14 +477,14 @@ class TestStage11Output(unittest.TestCase):
                 "sector",
                 "count_of_responses",
                 "count_of_promoters",
-                "count_of_detrators",
+                "count_of_detractors",
                 "count_of_passives",
                 "nps_score",
             ],
             msg=(
                 "Expected stage_11_output.csv to strictly follow columns: "
                 "company_name, sector, count_of_responses, count_of_promoters, "
-                "count_of_detrators, count_of_passives, nps_score."
+                "count_of_detractors, count_of_passives, nps_score."
             ),
         )
 
@@ -498,7 +498,7 @@ class TestStage11Output(unittest.TestCase):
             .agg(
                 count_of_responses=("nps_category", "size"),
                 count_of_promoters=("is_promoter", "sum"),
-                count_of_detrators=("is_detractor", "sum"),
+                count_of_detractors=("is_detractor", "sum"),
                 count_of_passives=("is_passive", "sum"),
             )
             .rename(columns={"comp_inte_with": "company_name", "sect": "sector"})
@@ -506,7 +506,7 @@ class TestStage11Output(unittest.TestCase):
 
         expected["nps_score"] = (
             (expected["count_of_promoters"] / expected["count_of_responses"] * 100)
-            - (expected["count_of_detrators"] / expected["count_of_responses"] * 100)
+            - (expected["count_of_detractors"] / expected["count_of_responses"] * 100)
         )
 
         self.assertEqual(
@@ -521,7 +521,7 @@ class TestStage11Output(unittest.TestCase):
         numeric_columns = [
             "count_of_responses",
             "count_of_promoters",
-            "count_of_detrators",
+            "count_of_detractors",
             "count_of_passives",
             "nps_score",
         ]

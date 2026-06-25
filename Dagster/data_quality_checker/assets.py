@@ -323,3 +323,154 @@ def ncsi_stage_8_output(
     """Stage-8 output with income category derived from inco."""
     return add_income_category(ncsi_stage_7_output)
 
+
+def convert_to_percentages(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Convert specific columns to percentages based on their base scale (7 or 8)."""
+    output = dataframe.copy()
+    base_7_cols = [
+        "over_sati_with",
+        "trus_exte_of",
+        "prof_exte_of",
+        "bran_bran_outl",
+        "comp_exte_of",
+        "ease_of_doin",
+        "proc_and_proc",
+        "cust_focu_inno",
+        "enga_with_cust",
+    ]
+    base_8_cols = [
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    ]
+    for col in base_7_cols:
+        if col in output.columns:
+            output[col] = (pd.to_numeric(output[col], errors="coerce") / 7.0) * 100.0
+    for col in base_8_cols:
+        if col in output.columns:
+            output[col] = (pd.to_numeric(output[col], errors="coerce") / 8.0) * 100.0
+    return output
+
+
+@asset(metadata={"filename": "clean_stage9/stage_9_output.csv"})
+def ncsi_stage_9_output(
+    ncsi_stage_8_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-9 output with specific columns converted to percentages."""
+    return convert_to_percentages(ncsi_stage_8_output)
+
+
+def aggregate_company_importance(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Calculate the average 'order of importance' attributes per company and restructure."""
+    ooi_cols = [
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    ]
+    df_subset = dataframe[["comp_inte_with"] + ooi_cols].copy()
+
+    for col in ooi_cols:
+        df_subset[col] = pd.to_numeric(df_subset[col], errors="coerce")
+
+    melted = df_subset.melt(
+        id_vars=["comp_inte_with"],
+        value_vars=ooi_cols,
+        var_name="Attribute",
+        value_name="Score",
+    )
+
+    aggregated = (
+        melted.groupby(["comp_inte_with", "Attribute"], as_index=False)["Score"]
+        .mean()
+        .rename(columns={"Score": "Average_score"})
+    )
+
+    return aggregated
+
+
+@asset(metadata={"filename": "clean_stage10/stage_10_output.csv"})
+def ncsi_stage_10_output(
+    ncsi_stage_8_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-10 output with company importance aggregates."""
+    return aggregate_company_importance(ncsi_stage_8_output)
+
+
+def calculate_company_nps(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Calculate company-level Net Promoter Score (NPS) statistics."""
+    df = dataframe.copy()
+
+    df["is_promoter"] = (df["nps_category"] == "promoter").astype(int)
+    df["is_detractor"] = (df["nps_category"] == "detractor").astype(int)
+    df["is_passive"] = (df["nps_category"] == "passive").astype(int)
+
+    agg = (
+        df.groupby(["comp_inte_with", "sect"], as_index=False)
+        .agg(
+            count_of_responses=("nps_category", "size"),
+            count_of_promoters=("is_promoter", "sum"),
+            count_of_detributors=("is_detractor", "sum"),  # Wait, let's keep name consistent
+            count_of_passives=("is_passive", "sum"),
+        )
+    )
+    # Wait, the prompt says columns should be:
+    # 1. company_name (mapped from comp_inte_with)
+    # 2. sector (mapped from sect)
+    # 3. count_of_responses
+    # 4. count_of_promoters
+    # 5. count_of_detractors (notice the prompt specifies 'count_of_detractors')
+    # 6. count_of_passives
+    # 7. nps_score
+    # Let's rename comp_inte_with to company_name, sect to sector, is_detractor sum to count_of_detractors
+    agg = agg.rename(columns={
+        "comp_inte_with": "company_name", 
+        "sect": "sector",
+        "count_of_detributors": "count_of_detractors"
+    })
+
+    agg["nps_score"] = 0.0
+    non_zero = agg["count_of_responses"] > 0
+    agg.loc[non_zero, "nps_score"] = (
+        (agg.loc[non_zero, "count_of_promoters"] - agg.loc[non_zero, "count_of_detractors"])
+        / agg.loc[non_zero, "count_of_responses"]
+    ) * 100.0
+
+    return agg
+
+
+@asset(metadata={"filename": "clean_stage11/stage_11_output.csv"})
+def ncsi_stage_11_output(
+    ncsi_stage_8_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-11 output with company-level Net Promoter Score (NPS) statistics."""
+    return calculate_company_nps(ncsi_stage_8_output)
+
+
+def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Extract region data and generate instance counts."""
+    return (
+        dataframe.groupby("regi", dropna=False)
+        .size()
+        .reset_index(name="Count")
+        .rename(columns={"regi": "State"})
+    )
+
+
+@asset(metadata={"filename": "clean_stage12/stage_12_output.csv"})
+def ncsi_stage_12_output(
+    ncsi_stage_8_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-12 output with region instance counts."""
+    return create_states_dataset(ncsi_stage_8_output)
+
+
