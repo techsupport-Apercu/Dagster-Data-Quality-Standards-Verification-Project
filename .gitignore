@@ -32,3 +32,4 @@ Dagster/data_quality_checker/__pycache__/assets.cpython-314.pyc
 *.pyc
 *.pyc
 *.ipynb
+Dagster/models/cardiffnlp-twitter-roberta-base-sentiment-latest/model.safetensors

@@ -1,9 +1,17 @@
 import re
 from functools import lru_cache
+from pathlib import Path
 
 import pandas as pd
 from dagster import asset
 from transformers import pipeline
+
+
+LOCAL_SENTIMENT_MODEL_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "models"
+    / "cardiffnlp-twitter-roberta-base-sentiment-latest"
+)
 
 
 def build_short_column_mapping(columns: list[str], max_length: int = 18) -> dict[str, str]:
@@ -91,10 +99,17 @@ def attach_company_ids(stage2_dataframe: pd.DataFrame, companies_dataset: pd.Dat
 @lru_cache(maxsize=1)
 def _get_sentiment_classifier():
     """Create and cache the CardiffNLP Twitter-RoBERTa sentiment pipeline."""
+    if not (LOCAL_SENTIMENT_MODEL_DIR / "config.json").exists():
+        raise FileNotFoundError(
+            "Local sentiment model not found. Run scripts/download_cardiffnlp_model.py first. "
+            f"Expected model files under: {LOCAL_SENTIMENT_MODEL_DIR}"
+        )
+
     return pipeline(
         task="sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-        tokenizer="cardiffnlp/twitter-roberta-base-sentiment-latest",
+        model=str(LOCAL_SENTIMENT_MODEL_DIR),
+        tokenizer=str(LOCAL_SENTIMENT_MODEL_DIR),
+        local_files_only=True,
     )
 
 
@@ -289,7 +304,10 @@ def add_age_category(dataframe: pd.DataFrame) -> pd.DataFrame:
     return output
 
 
-@asset(metadata={"filename": "clean_stage7/stage_7_output.csv"})
+@asset(
+    metadata={"filename": "clean_stage7/stage_7_output.csv"},
+    deps=["ncsi_stage_6_output"],
+)
 def ncsi_stage_7_output(
     ncsi_stage_5_output: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -417,7 +435,10 @@ def aggregate_company_importance(dataframe: pd.DataFrame) -> pd.DataFrame:
     return aggregated
 
 
-@asset(metadata={"filename": "clean_stage10/stage_10_output.csv"})
+@asset(
+    metadata={"filename": "clean_stage10/stage_10_output.csv"},
+    deps=["ncsi_stage_9_output"],
+)
 def ncsi_stage_10_output(
     ncsi_stage_8_output: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -467,7 +488,10 @@ def calculate_company_nps(dataframe: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 
-@asset(metadata={"filename": "clean_stage11/stage_11_output.csv"})
+@asset(
+    metadata={"filename": "clean_stage11/stage_11_output.csv"},
+    deps=["ncsi_stage_10_output"],
+)
 def ncsi_stage_11_output(
     ncsi_stage_8_output: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -485,7 +509,10 @@ def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-@asset(metadata={"filename": "clean_stage12/stage_12_output.csv"})
+@asset(
+    metadata={"filename": "clean_stage12/stage_12_output.csv"},
+    deps=["ncsi_stage_11_output"],
+)
 def ncsi_stage_12_output(
     ncsi_stage_8_output: pd.DataFrame,
 ) -> pd.DataFrame:
