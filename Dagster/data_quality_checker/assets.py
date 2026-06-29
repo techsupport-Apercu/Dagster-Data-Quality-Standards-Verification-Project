@@ -53,8 +53,38 @@ def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
     if "comp_inte_with" not in dataframe.columns:
         raise KeyError("Required column 'comp_inte_with' was not found in ncsi_datadump_short_columns.")
 
-    cleaned = dataframe.dropna(subset=["comp_inte_with"]).copy()
-    cleaned["comp_inte_with"] = cleaned["comp_inte_with"].astype(str).str.upper()
+    cleaned = dataframe.copy()
+    cleaned["comp_inte_with"] = cleaned["comp_inte_with"].astype("string").str.upper()
+
+    cleaned["comp_inte_with"] = (
+        cleaned["comp_inte_with"]
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
+
+    cleaned = cleaned.dropna(subset=["comp_inte_with"]).copy()
+
+    replacements = {
+        "JUDICIARY": "NIGERIAN JUDICIARY",
+        "ALIBABA POWER LIMITED [APL ELECTRIC COMPANY LIMITED]": "ABA POWER LIMITED",
+        "APL ELECTRIC COMPANY LIMITED": "ABA POWER LIMITED",
+        "ABA POWER LIMITED [APL ELECTRIC COMPANY LIMITED]": "ABA POWER LIMITED",
+        "LAGOS TRICYCLE(KEKE NAPEP)": "KEKE NAPEP",
+        "LAGOS TRICYCLE (KEKE NAPEP)": "KEKE NAPEP",
+        "MAITAMA GENERAL HOSPITAL - FCT(ABUJA)": "MAITAMA GENERAL HOSPITAL",
+        "UNIVERSITY OF LAGOS, HEALTH CENTER": "UNIVERSITY OF LAGOS HEALTH CENTER",
+        "LAGOS YELLOW BUSES": "YELLOW BUSES",
+        "LAGOS YELLOW BUSES BUS": "YELLOW BUSES",
+        "COMMERCIAL BUS": "YELLOW BUSES",
+        "COMMERCIAL BUS (YELLOW BUSES)": "YELLOW BUSES",
+        "BRT": "BUS RAPID TRANSIT [BRT]",
+        "GENERAL HOSPITAL ILORIN": "GENERAL HOSPITAL, ILORIN",
+        "HOTEL DU HOLF": "HOTEL DU GOLF",
+        "ARMY": "NIGERIAN ARMY",
+        "GENERAL HOSPITAL, ISOLO,OSHODI,LAGOS": "ISOLO GENERAL HOSPITAL",
+        "GENERAL HOSPITAL ISOLO, OSHODI, LAGOS": "ISOLO GENERAL HOSPITAL",
+    }
+    cleaned["comp_inte_with"] = cleaned["comp_inte_with"].replace(replacements)
     return cleaned
 
 
@@ -509,6 +539,98 @@ def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def calculate_overall_cx_score(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Calculate overall CX score per company using weighted attribute scores."""
+    required_columns = {
+        "company_id",
+        "sect",
+        "prof_exte_of",
+        "bran_bran_outl",
+        "comp_exte_of",
+        "ease_of_doin",
+        "proc_and_proc",
+        "cust_focu_inno",
+        "enga_with_cust",
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    }
+    missing = required_columns.difference(dataframe.columns)
+    if missing:
+        raise KeyError(f"Missing required columns for stage-13 output: {sorted(missing)}")
+
+    output = dataframe.copy()
+
+    trust_column = "trust_exte_of" if "trust_exte_of" in output.columns else "trus_exte_of"
+    if trust_column not in output.columns:
+        raise KeyError("Missing required trust column: expected 'trust_exte_of' or 'trus_exte_of'.")
+
+    numeric_columns = [
+        trust_column,
+        "prof_exte_of",
+        "bran_bran_outl",
+        "comp_exte_of",
+        "ease_of_doin",
+        "proc_and_proc",
+        "cust_focu_inno",
+        "enga_with_cust",
+        "orde_of_impo",
+        "orde_of_impo_1",
+        "orde_of_impo_2",
+        "orde_of_impo_3",
+        "orde_of_impo_4",
+        "orde_of_impo_5",
+        "orde_of_impo_6",
+        "orde_of_impo_7",
+    ]
+    for column in numeric_columns:
+        output[column] = pd.to_numeric(output[column], errors="coerce")
+
+    output["weighted_numerator"] = (
+        output[trust_column] * output["orde_of_impo"]
+        + output["prof_exte_of"] * output["orde_of_impo_1"]
+        + output["bran_bran_outl"] * output["orde_of_impo_2"]
+        + output["comp_exte_of"] * output["orde_of_impo_3"]
+        + output["ease_of_doin"] * output["orde_of_impo_4"]
+        + output["proc_and_proc"] * output["orde_of_impo_5"]
+        + output["cust_focu_inno"] * output["orde_of_impo_6"]
+        + output["enga_with_cust"] * output["orde_of_impo_7"]
+    )
+
+    output["weight_sum"] = (
+        output["orde_of_impo"]
+        + output["orde_of_impo_1"]
+        + output["orde_of_impo_2"]
+        + output["orde_of_impo_3"]
+        + output["orde_of_impo_4"]
+        + output["orde_of_impo_5"]
+        + output["orde_of_impo_6"]
+        + output["orde_of_impo_7"]
+    )
+
+    grouped = (
+        output.groupby(["company_id", "sect"], as_index=False)
+        .agg(
+            weighted_numerator=("weighted_numerator", "sum"),
+            weight_sum=("weight_sum", "sum"),
+        )
+        .rename(columns={"sect": "sector"})
+    )
+
+    grouped["overall_cx_score"] = pd.NA
+    non_zero = grouped["weight_sum"] > 0
+    grouped.loc[non_zero, "overall_cx_score"] = (
+        grouped.loc[non_zero, "weighted_numerator"] / grouped.loc[non_zero, "weight_sum"]
+    )
+
+    return grouped[["company_id", "sector", "overall_cx_score"]]
+
+
 @asset(
     metadata={"filename": "clean_stage12/stage_12_output.csv"},
     deps=["ncsi_stage_11_output"],
@@ -518,5 +640,16 @@ def ncsi_stage_12_output(
 ) -> pd.DataFrame:
     """Stage-12 output with region instance counts."""
     return create_states_dataset(ncsi_stage_8_output)
+
+
+@asset(
+    metadata={"filename": "clean_stage13/stage_13_output.csv"},
+    deps=["ncsi_stage_12_output"],
+)
+def ncsi_stage_13_output(
+    ncsi_stage_9_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-13 output with overall CX score per company and sector."""
+    return calculate_overall_cx_score(ncsi_stage_9_output)
 
 
