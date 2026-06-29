@@ -631,6 +631,23 @@ def calculate_overall_cx_score(dataframe: pd.DataFrame) -> pd.DataFrame:
     return grouped[["company_id", "sector", "overall_cx_score"]]
 
 
+def aggregate_sector_scores(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate Stage-13 overall CX scores to sector-level scores."""
+    required_columns = {"sector", "overall_cx_score"}
+    missing = required_columns.difference(dataframe.columns)
+    if missing:
+        raise KeyError(f"Missing required columns for stage-14 output: {sorted(missing)}")
+
+    output = dataframe.copy()
+    output["overall_cx_score"] = pd.to_numeric(output["overall_cx_score"], errors="coerce")
+
+    return (
+        output.groupby("sector", as_index=False)["overall_cx_score"]
+        .mean()
+        .rename(columns={"overall_cx_score": "sector_score"})
+    )
+
+
 @asset(
     metadata={"filename": "clean_stage12/stage_12_output.csv"},
     deps=["ncsi_stage_11_output"],
@@ -651,5 +668,16 @@ def ncsi_stage_13_output(
 ) -> pd.DataFrame:
     """Stage-13 output with overall CX score per company and sector."""
     return calculate_overall_cx_score(ncsi_stage_9_output)
+
+
+@asset(
+    metadata={"filename": "clean_stage14/stage_14_output.csv"},
+    deps=["ncsi_stage_12_output"],
+)
+def ncsi_stage_14_output(
+    ncsi_stage_13_output: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-14 output with sector-level aggregated CX scores."""
+    return aggregate_sector_scores(ncsi_stage_13_output)
 
 

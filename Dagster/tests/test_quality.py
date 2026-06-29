@@ -722,5 +722,69 @@ class TestStage13Output(unittest.TestCase):
         )
 
 
+class TestStage14Output(unittest.TestCase):
+    def test_stage14_output_matches_expected_sector_scores_and_format(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage13_path = datasets_dir / "clean_stage13" / "stage_13_output.csv"
+        stage14_path = datasets_dir / "clean_stage14" / "stage_14_output.csv"
+
+        self.assertTrue(
+            stage13_path.exists(),
+            msg=f"Expected stage 13 output file to exist at '{stage13_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage14_path.name,
+            "stage_14_output.csv",
+            msg="Expected Stage 14 final output to be labeled as 'stage_14_output.csv'.",
+        )
+        self.assertTrue(
+            stage14_path.exists(),
+            msg=f"Expected stage 14 output file to exist at '{stage14_path}', but it was not found.",
+        )
+
+        stage13 = pd.read_csv(stage13_path)
+        stage14 = pd.read_csv(stage14_path)
+
+        self.assertListEqual(
+            list(stage14.columns),
+            ["sector", "sector_score"],
+            msg="Expected stage_14_output.csv to strictly follow columns: sector, sector_score.",
+        )
+
+        for column in ["sector", "overall_cx_score"]:
+            self.assertIn(column, stage13.columns, msg=f"Expected '{column}' to exist in stage_13_output.csv.")
+
+        expected = stage13.copy()
+        expected["overall_cx_score"] = pd.to_numeric(expected["overall_cx_score"], errors="coerce")
+
+        expected = (
+            expected.groupby("sector", as_index=False)["overall_cx_score"]
+            .mean()
+            .rename(columns={"overall_cx_score": "sector_score"})
+        )
+
+        self.assertEqual(
+            len(stage14),
+            len(expected),
+            msg="Expected one Stage 14 output row per sector.",
+        )
+
+        actual_sorted = stage14.sort_values(["sector"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["sector"]).reset_index(drop=True)
+
+        actual_sorted["sector_score"] = pd.to_numeric(actual_sorted["sector_score"], errors="coerce")
+        expected_sorted["sector_score"] = pd.to_numeric(expected_sorted["sector_score"], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 14 output mismatch",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

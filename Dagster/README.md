@@ -1,6 +1,6 @@
 # Dagster NCSI Pipeline
 
-This project defines a Dagster asset pipeline that transforms NCSI survey data across 13 cleaning/enrichment stages and writes CSV outputs per stage.
+This project defines a Dagster asset pipeline that transforms NCSI survey data across 14 cleaning/enrichment stages and writes CSV outputs per stage.
 
 ## Pipeline Graph
 
@@ -23,6 +23,8 @@ graph TD
     K --> N[ncsi_stage_11_output]
     K --> O[ncsi_stage_12_output]
     O --> P[ncsi_stage_13_output]
+    O --> Q[ncsi_stage_14_output]
+    P --> Q
 ```
 
 ## Stage Outputs
@@ -55,6 +57,8 @@ graph TD
     - datasets/clean_stage12/stage_12_output.csv
 13. Stage 13
     - datasets/clean_stage13/stage_13_output.csv
+14. Stage 14
+    - datasets/clean_stage14/stage_14_output.csv
 
 ## What Each Stage Does
 
@@ -95,6 +99,10 @@ graph TD
     - Runs after Stage 12 while using Stage 9 output as input.
     - Calculates overall_cx_score using weighted attribute scores per company.
     - Outputs company_id, sector, and overall_cx_score.
+14. Stage 14
+    - Runs after Stage 12 while using Stage 13 output as input.
+    - Aggregates overall_cx_score by sector.
+    - Outputs sector and sector_score.
 
 ## Running Locally
 
