@@ -1,8 +1,9 @@
 import re
+from functools import lru_cache
 
 import pandas as pd
 from dagster import asset
-from textblob import TextBlob
+from transformers import pipeline
 
 
 def build_short_column_mapping(columns: list[str], max_length: int = 18) -> dict[str, str]:
@@ -87,14 +88,32 @@ def attach_company_ids(stage2_dataframe: pd.DataFrame, companies_dataset: pd.Dat
     return merged
 
 
+@lru_cache(maxsize=1)
+def _get_sentiment_classifier():
+    """Create and cache the CardiffNLP Twitter-RoBERTa sentiment pipeline."""
+    return pipeline(
+        task="sentiment-analysis",
+        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+        tokenizer="cardiffnlp/twitter-roberta-base-sentiment-latest",
+    )
+
+
 def classify_sentiment(text: str) -> str:
-    """Classify a text value into POSITIVE, NEGATIVE, or NEUTRAL using TextBlob."""
-    polarity = TextBlob(text).sentiment.polarity
-    if polarity > 0:
-        return "POSITIVE"
-    if polarity < 0:
-        return "NEGATIVE"
-    return "NEUTRAL"
+    """Classify a text value into POSITIVE, NEGATIVE, or NEUTRAL using CardiffNLP."""
+    normalized_text = str(text).strip()
+    if not normalized_text:
+        return "NEUTRAL"
+
+    prediction = _get_sentiment_classifier()(normalized_text, truncation=True)[0]["label"]
+    label_map = {
+        "LABEL_0": "NEGATIVE",
+        "negative": "NEGATIVE",
+        "LABEL_1": "NEUTRAL",
+        "neutral": "NEUTRAL",
+        "LABEL_2": "POSITIVE",
+        "positive": "POSITIVE",
+    }
+    return label_map.get(str(prediction), "NEUTRAL")
 
 
 def add_impr_on_cust_sentiment(dataframe: pd.DataFrame) -> pd.DataFrame:

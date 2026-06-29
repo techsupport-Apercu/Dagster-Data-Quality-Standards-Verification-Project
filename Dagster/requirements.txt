@@ -1,4 +1,5 @@
 dagster
 dagster-webserver
 pandas
-textblob
+torch
+transformers

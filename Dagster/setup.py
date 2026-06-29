@@ -7,6 +7,8 @@ setup(
         "dagster",
         "dagster-webserver",
         "pandas",
+        "torch",
+        "transformers",
     ],
     extras_require={"dev": ["pytest"]},
 )

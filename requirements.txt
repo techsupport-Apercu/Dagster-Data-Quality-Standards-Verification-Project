@@ -1,3 +1,5 @@
 dagster
 dagster-webserver
 pandas
+torch
+transformers
