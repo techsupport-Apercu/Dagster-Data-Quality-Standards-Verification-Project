@@ -599,5 +599,128 @@ class TestStage12Output(unittest.TestCase):
         )
 
 
+class TestStage13Output(unittest.TestCase):
+    def test_stage13_output_matches_expected_overall_cx_score_and_format(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage9_path = datasets_dir / "clean_stage9" / "stage_9_output.csv"
+        stage13_path = datasets_dir / "clean_stage13" / "stage_13_output.csv"
+
+        self.assertTrue(
+            stage9_path.exists(),
+            msg=f"Expected stage 9 output file to exist at '{stage9_path}', but it was not found.",
+        )
+        self.assertEqual(
+            stage13_path.name,
+            "stage_13_output.csv",
+            msg="Expected Stage 13 final output to be labeled as 'stage_13_output.csv'.",
+        )
+        self.assertTrue(
+            stage13_path.exists(),
+            msg=f"Expected stage 13 output file to exist at '{stage13_path}', but it was not found.",
+        )
+
+        stage9 = pd.read_csv(stage9_path)
+        stage13 = pd.read_csv(stage13_path)
+
+        self.assertListEqual(
+            list(stage13.columns),
+            ["company_id", "sector", "overall_cx_score"],
+            msg=(
+                "Expected stage_13_output.csv to strictly follow columns: "
+                "company_id, sector, overall_cx_score."
+            ),
+        )
+
+        trust_column = "trust_exte_of" if "trust_exte_of" in stage9.columns else "trus_exte_of"
+        self.assertIn(
+            trust_column,
+            stage9.columns,
+            msg="Expected Stage 9 output to include 'trust_exte_of' or 'trus_exte_of'.",
+        )
+
+        weighted_columns = [
+            trust_column,
+            "prof_exte_of",
+            "bran_bran_outl",
+            "comp_exte_of",
+            "ease_of_doin",
+            "proc_and_proc",
+            "cust_focu_inno",
+            "enga_with_cust",
+            "orde_of_impo",
+            "orde_of_impo_1",
+            "orde_of_impo_2",
+            "orde_of_impo_3",
+            "orde_of_impo_4",
+            "orde_of_impo_5",
+            "orde_of_impo_6",
+            "orde_of_impo_7",
+        ]
+        for column in ["company_id", "sect", *weighted_columns]:
+            self.assertIn(column, stage9.columns, msg=f"Expected '{column}' to exist in stage_9_output.csv.")
+
+        expected = stage9.copy()
+        for column in weighted_columns:
+            expected[column] = pd.to_numeric(expected[column], errors="coerce")
+
+        expected["weighted_numerator"] = (
+            expected[trust_column] * expected["orde_of_impo"]
+            + expected["prof_exte_of"] * expected["orde_of_impo_1"]
+            + expected["bran_bran_outl"] * expected["orde_of_impo_2"]
+            + expected["comp_exte_of"] * expected["orde_of_impo_3"]
+            + expected["ease_of_doin"] * expected["orde_of_impo_4"]
+            + expected["proc_and_proc"] * expected["orde_of_impo_5"]
+            + expected["cust_focu_inno"] * expected["orde_of_impo_6"]
+            + expected["enga_with_cust"] * expected["orde_of_impo_7"]
+        )
+        expected["weight_sum"] = (
+            expected["orde_of_impo"]
+            + expected["orde_of_impo_1"]
+            + expected["orde_of_impo_2"]
+            + expected["orde_of_impo_3"]
+            + expected["orde_of_impo_4"]
+            + expected["orde_of_impo_5"]
+            + expected["orde_of_impo_6"]
+            + expected["orde_of_impo_7"]
+        )
+
+        expected = (
+            expected.groupby(["company_id", "sect"], as_index=False)
+            .agg(
+                weighted_numerator=("weighted_numerator", "sum"),
+                weight_sum=("weight_sum", "sum"),
+            )
+            .rename(columns={"sect": "sector"})
+        )
+        expected["overall_cx_score"] = pd.NA
+        non_zero = expected["weight_sum"] > 0
+        expected.loc[non_zero, "overall_cx_score"] = (
+            expected.loc[non_zero, "weighted_numerator"] / expected.loc[non_zero, "weight_sum"]
+        )
+        expected = expected[["company_id", "sector", "overall_cx_score"]]
+
+        self.assertEqual(
+            len(stage13),
+            len(expected),
+            msg="Expected one Stage 13 output row per company and sector.",
+        )
+
+        actual_sorted = stage13.sort_values(["company_id", "sector"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["company_id", "sector"]).reset_index(drop=True)
+
+        actual_sorted["overall_cx_score"] = pd.to_numeric(actual_sorted["overall_cx_score"], errors="coerce")
+        expected_sorted["overall_cx_score"] = pd.to_numeric(expected_sorted["overall_cx_score"], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 13 output mismatch",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
