@@ -7,6 +7,12 @@ from dagster import asset
 from transformers import pipeline
 
 
+def _unwrap_tuple(df):
+    if isinstance(df, tuple):
+        return df[0]
+    return df
+
+
 LOCAL_SENTIMENT_MODEL_DIR = (
     Path(__file__).resolve().parents[1]
     / "models"
@@ -49,7 +55,8 @@ def build_short_column_mapping(columns: list[str], max_length: int = 18) -> dict
 
 
 def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Drop null comp_inte_with rows and normalize values to uppercase."""
+    """Clean the comp_inte_with column by standardizing naming variations and casing."""
+    dataframe = _unwrap_tuple(dataframe)
     if "comp_inte_with" not in dataframe.columns:
         raise KeyError("Required column 'comp_inte_with' was not found in ncsi_datadump_short_columns.")
 
@@ -66,7 +73,7 @@ def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
 
     replacements = {
         "JUDICIARY": "NIGERIAN JUDICIARY",
-        "ALIBABA POWER LIMITED [APL ELECTRIC COMPANY LIMITED]": "ABA POWER LIMITED",
+        "ALIBABA POWER LIMITED [APL ELECTRIC COMPANY LIMITED]": "ALIBABA",
         "APL ELECTRIC COMPANY LIMITED": "ABA POWER LIMITED",
         "ABA POWER LIMITED [APL ELECTRIC COMPANY LIMITED]": "ABA POWER LIMITED",
         "LAGOS TRICYCLE(KEKE NAPEP)": "KEKE NAPEP",
@@ -81,8 +88,50 @@ def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
         "GENERAL HOSPITAL ILORIN": "GENERAL HOSPITAL, ILORIN",
         "HOTEL DU HOLF": "HOTEL DU GOLF",
         "ARMY": "NIGERIAN ARMY",
+        "NIGERIA ARMY": "NIGERIAN ARMY",
         "GENERAL HOSPITAL, ISOLO,OSHODI,LAGOS": "ISOLO GENERAL HOSPITAL",
         "GENERAL HOSPITAL ISOLO, OSHODI, LAGOS": "ISOLO GENERAL HOSPITAL",
+        "GLOBALCOM LIMITEDVO": "GLOVO",
+        "FOXGLOBALCOM LIMITEDVE HOSPITAL": "FOXGLOVE HOSPITAL",
+        "AFRIGLOBALCOM LIMITEDBAL MEDICARE": "AFRIGLOBAL MEDICARE",
+        "FJOSEPH SARWUAN TARKA UNIVERSITY, MAKURDI": "JOSEPH SARWUAN TARKA UNIVERSITY, MAKURDI",
+        "UNN-NSUKKA": "UNIVERSITY OF NIGERIA, NSUKKA [UNN]",
+        "UNIVERSITY OF BENIN TEACHING HOSPITAL, BENIN CITY": "UNIVERSITY OF BENIN TEACHING HOSPITAL",
+        "UNIVERSITY OF NIGERIA TEACHING HOSPITAL-UYO": "UNIVERSITY OF UYO TEACHING HOSPITAL",
+        "UUTH UYO": "UNIVERSITY OF UYO TEACHING HOSPITAL",
+        "TEACHING HOSPITAL UYO": "UNIVERSITY OF UYO TEACHING HOSPITAL",
+        "UYO TEACHING HOSPITAL": "UNIVERSITY OF UYO TEACHING HOSPITAL",
+        "UCH - IBADAN": "UNIVERSITY COLLEGE HOSPITAL, IBADAN",
+        "UNIVERSITY TEACHING HOSPITAL (UCH)": "UNIVERSITY COLLEGE HOSPITAL, IBADAN",
+        "UNIVERSITY OF IBADAN TEACHING HOSPITAL - IBADAN": "UNIVERSITY COLLEGE HOSPITAL, IBADAN",
+        "UATH": "UNIVERSITY OF ABUJA TEACHING HOSPITAL",
+        "THE POLYTECNIC, IBADAN": "THE POLYTECHNIC, IBADAN",
+        "ABUTH - KANO": "AMINU KANO TEACHING HOSPITAL",
+        "ABUTH - BAUCHI": "ABUBAKAR TAFAWA BALEWA UNIVERSITY TEACHING HOSPITAL",
+        "ABUTH - KADUNA": "AHMADU BELLO UNIVERSITY TEACHING HOSPITAL",
+        "ABUTH, ZARIA": "AHMADU BELLO UNIVERSITY TEACHING HOSPITAL",
+        "NIGERIA JUDICIARY": "NIGERIAN JUDICIARY",
+        "AMINU KANO TEACHING HOSPITAL- KANO": "AMINU KANO TEACHING HOSPITAL",
+        "ACCESS PENSIONS": "ACCESS ARM PENSIONS",
+        "COMMERCIAL BUS(YELLOW BUSES)": "YELLOW BUSES",
+        "REDEEM MEDICAL CARE": "REDEEM MEDICAL CENTER",
+        "MINISTRY OF EDUCATION ABUJA": "MINISTRY OF EDUCATION",
+        "PRIMARY HEALTH CARE CENTER ABUJA": "PRIMARY HEALTH CARE CENTER",
+        "PUBLIC TAXI TRANSPORT": "PUBLIC TRANSPORT",
+        "FEDERAL MEDICAL CENTER KEBBI": "FEDERAL MEDICAL CENTER BIRNIN KEBBI",
+        "UNIABUJA TEACHING HOSPITAL": "UNIVERSITY OF ABUJA TEACHING HOSPITAL",
+        "NIGERIA EMBASSY - EGYPT": "NIGERIAN EMBASSY, CAIRO EGYPT",
+        "BEDC ELECTRICITY PUBLIC LIMITED COMPANY [PLC]": "BENIN ELECTRICITY DISTRIBUTION COMPANY [BEEDC]",
+        "FEDERAL MEDICAL CENTER ASAABA": "FEDERAL MEDICAL CENTER ASABA",
+        "GENERAL HOSPITAL OKWE ASAABA": "GENERAL HOSPITAL OKWE ASABA",
+        "TOSCANA, ASAABA": "TOSCANA, ASABA",
+        "EARLY MOBILE TELECOMMUNICATIONS NETWORK (MTN) DELIVERY": "MOBILE TELECOMMUNICATIONS NETWORK (MTN)",
+        "MINISTRY OF FOREIGN AFFAIRS": "FEDERAL MINISTRY OF FOREIGN AFFAIRS",
+        "INTERCONTINENTAL HOTEL LAGOS": "LAGOS CONTINENTAL HOTEL",
+        "THE LAGOS INTERCONTINENTAL HOTEL": "LAGOS CONTINENTAL HOTEL",
+        "UNIMAID TEACH HOSPITAL": "UNIVERSITY OF MAIDUGURU TEACHING HOSPITAL MAIDUGURI",
+        "UNIPORT TECH HOSPITAL": "UNIVERSITY OF PORT HARCOURT TEACH, HOSPITAL (UPTH)",
+        "MEDICAL CENTRE, UNN": "UNIVERSITY OF NIGERIA, NSUKKA MEDICAL CENTRE",
     }
     cleaned["comp_inte_with"] = cleaned["comp_inte_with"].replace(replacements)
     return cleaned
@@ -90,6 +139,7 @@ def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def build_companies_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Create a company dimension table from stage-2 data."""
+    dataframe = _unwrap_tuple(dataframe)
     required_columns = {"comp_inte_with", "sect"}
     missing = required_columns.difference(dataframe.columns)
     if missing:
@@ -108,6 +158,8 @@ def build_companies_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def attach_company_ids(stage2_dataframe: pd.DataFrame, companies_dataset: pd.DataFrame) -> pd.DataFrame:
     """Attach company_id to stage-2 rows using comp_inte_with as key."""
+    stage2_dataframe = _unwrap_tuple(stage2_dataframe)
+    companies_dataset = _unwrap_tuple(companies_dataset)
     if "comp_inte_with" not in stage2_dataframe.columns:
         raise KeyError("Required column 'comp_inte_with' was not found in stage-2 data.")
 
@@ -163,16 +215,48 @@ def classify_sentiment(text: str) -> str:
 
 def add_impr_on_cust_sentiment(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Append sentiment labels derived from impr_on_cust values."""
+    dataframe = _unwrap_tuple(dataframe)
     if "impr_on_cust" not in dataframe.columns:
         raise KeyError("Required column 'impr_on_cust' was not found in stage-3 data.")
 
     output = dataframe.copy()
-    output["impr_on_cust_sentiment"] = (
-        output["impr_on_cust"]
-        .fillna("")
-        .astype(str)
-        .map(classify_sentiment)
-    )
+    texts_series = output["impr_on_cust"].fillna("").astype(str)
+    trimmed_series = texts_series.str.strip()
+    
+    # Extract unique non-empty trimmed comments to avoid redundant classifications
+    unique_non_empty = trimmed_series[trimmed_series != ""].unique()
+    
+    sentiment_map = {}
+    
+    if len(unique_non_empty) > 0:
+        classifier = _get_sentiment_classifier()
+        
+        # Generator enables native Hugging Face pipeline batching
+        def text_generator():
+            for t in unique_non_empty:
+                yield t
+        
+        results = classifier(text_generator(), batch_size=256, truncation=True)
+        results = list(results)
+        
+        label_map = {
+            "LABEL_0": "NEGATIVE",
+            "negative": "NEGATIVE",
+            "LABEL_1": "NEUTRAL",
+            "neutral": "NEUTRAL",
+            "LABEL_2": "POSITIVE",
+            "positive": "POSITIVE",
+        }
+        for text, res in zip(unique_non_empty, results):
+            sentiment_map[text] = label_map.get(str(res["label"]), "NEUTRAL")
+            
+    def map_sentiment(val):
+        trimmed = str(val).strip()
+        if not trimmed:
+            return "NEUTRAL"
+        return sentiment_map.get(trimmed, "NEUTRAL")
+        
+    output["impr_on_cust_sentiment"] = texts_series.map(map_sentiment)
     return output
 
 
@@ -195,6 +279,7 @@ def classify_nps_category(value) -> str:
 
 def add_nps_category(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Append nps_category derived from like_to_reco values."""
+    dataframe = _unwrap_tuple(dataframe)
     if "like_to_reco" not in dataframe.columns:
         raise KeyError("Required column 'like_to_reco' was not found in stage-4 data.")
 
@@ -279,6 +364,7 @@ def ncsi_stage_5_output(
 
 def split_channels_of_interaction(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Split multi-value chan_of_inte values into separate rows, retaining i as key."""
+    dataframe = _unwrap_tuple(dataframe)
     if "chan_of_inte" not in dataframe.columns:
         raise KeyError("Required column 'chan_of_inte' was not found in input data.")
     if "i" not in dataframe.columns:
@@ -326,6 +412,7 @@ def classify_age_category(age_value) -> str:
 
 def add_age_category(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Append age_category derived from ag values."""
+    dataframe = _unwrap_tuple(dataframe)
     if "ag" not in dataframe.columns:
         raise KeyError("Required column 'ag' was not found in input data.")
 
@@ -375,6 +462,7 @@ def classify_income_category(value) -> str:
 
 def add_income_category(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Append income_category derived from inco values."""
+    dataframe = _unwrap_tuple(dataframe)
     if "inco" not in dataframe.columns:
         raise KeyError("Required column 'inco' was not found in input data.")
 
@@ -393,6 +481,7 @@ def ncsi_stage_8_output(
 
 def convert_to_percentages(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Convert specific columns to percentages based on their base scale (7 or 8)."""
+    dataframe = _unwrap_tuple(dataframe)
     output = dataframe.copy()
     base_7_cols = [
         "over_sati_with",
@@ -434,6 +523,7 @@ def ncsi_stage_9_output(
 
 def aggregate_company_importance(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Calculate the average 'order of importance' attributes per company and restructure."""
+    dataframe = _unwrap_tuple(dataframe)
     ooi_cols = [
         "orde_of_impo",
         "orde_of_impo_1",
@@ -478,6 +568,7 @@ def ncsi_stage_10_output(
 
 def calculate_company_nps(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Calculate company-level Net Promoter Score (NPS) statistics."""
+    dataframe = _unwrap_tuple(dataframe)
     df = dataframe.copy()
 
     df["is_promoter"] = (df["nps_category"] == "promoter").astype(int)
@@ -531,6 +622,7 @@ def ncsi_stage_11_output(
 
 def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Extract region data and generate instance counts."""
+    dataframe = _unwrap_tuple(dataframe)
     return (
         dataframe.groupby("regi", dropna=False)
         .size()
@@ -541,6 +633,7 @@ def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def calculate_overall_cx_score(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Calculate overall CX score per company using weighted attribute scores."""
+    dataframe = _unwrap_tuple(dataframe)
     required_columns = {
         "company_id",
         "sect",
@@ -633,6 +726,7 @@ def calculate_overall_cx_score(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def aggregate_sector_scores(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Aggregate Stage-13 overall CX scores to sector-level scores."""
+    dataframe = _unwrap_tuple(dataframe)
     required_columns = {"sector", "overall_cx_score"}
     missing = required_columns.difference(dataframe.columns)
     if missing:
