@@ -129,9 +129,10 @@ def clean_comp_inte_with_column(dataframe: pd.DataFrame) -> pd.DataFrame:
         "MINISTRY OF FOREIGN AFFAIRS": "FEDERAL MINISTRY OF FOREIGN AFFAIRS",
         "INTERCONTINENTAL HOTEL LAGOS": "LAGOS CONTINENTAL HOTEL",
         "THE LAGOS INTERCONTINENTAL HOTEL": "LAGOS CONTINENTAL HOTEL",
-        "UNIMAID TEACH HOSPITAL": "UNIVERSITY OF MAIDUGURU TEACHING HOSPITAL MAIDUGURI",
+        "UNIMAID TEACH HOSPITAL": "UNIVERSITY OF MAIDUGURI TEACHING HOSPITAL MAIDUGURI",
         "UNIPORT TECH HOSPITAL": "UNIVERSITY OF PORT HARCOURT TEACH, HOSPITAL (UPTH)",
         "MEDICAL CENTRE, UNN": "UNIVERSITY OF NIGERIA, NSUKKA MEDICAL CENTRE",
+        "WUSE GENERAL HOSPITAL": "WUSE DISTRICT HOSPITAL",
     }
     cleaned["comp_inte_with"] = cleaned["comp_inte_with"].replace(replacements)
     return cleaned
@@ -322,7 +323,7 @@ def ncsi_datadump_short_columns(
 
 
 @asset(metadata={"filename": "clean_stage2/stage_2_ouput.csv"})
-def ncsi_datadump_comp_inte_with_cleaned(
+def ncsi_stage_2_output(
     ncsi_datadump_short_columns: pd.DataFrame,
 ) -> pd.DataFrame:
     """Stage-2 clean for comp_inte_with."""
@@ -331,19 +332,19 @@ def ncsi_datadump_comp_inte_with_cleaned(
 
 @asset(metadata={"filename": "clean_stage3/companies_dataset.csv"})
 def ncsi_companies_dataset(
-    ncsi_datadump_comp_inte_with_cleaned: pd.DataFrame,
+    ncsi_stage_2_output: pd.DataFrame,
 ) -> pd.DataFrame:
     """Stage-3 company dimension extracted from comp_inte_with."""
-    return build_companies_dataset(ncsi_datadump_comp_inte_with_cleaned)
+    return build_companies_dataset(ncsi_stage_2_output)
 
 
 @asset(metadata={"filename": "clean_stage3/stage_3_ouput.csv"})
 def ncsi_stage_3_output(
-    ncsi_datadump_comp_inte_with_cleaned: pd.DataFrame,
+    ncsi_stage_2_output: pd.DataFrame,
     ncsi_companies_dataset: pd.DataFrame,
 ) -> pd.DataFrame:
     """Stage-3 output with company IDs added for comp_inte_with."""
-    return attach_company_ids(ncsi_datadump_comp_inte_with_cleaned, ncsi_companies_dataset)
+    return attach_company_ids(ncsi_stage_2_output, ncsi_companies_dataset)
 
 
 @asset(metadata={"filename": "clean_stage4/stage_4_ouput.csv"})
@@ -742,6 +743,35 @@ def aggregate_sector_scores(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def add_sector_name(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Add sector_name to companies dataset using sect code mapping."""
+    dataframe = _unwrap_tuple(dataframe)
+    required_columns = {"sect"}
+    missing = required_columns.difference(dataframe.columns)
+    if missing:
+        raise KeyError(f"Missing required columns for stage-15 output: {sorted(missing)}")
+
+    sector_map = {
+        1: "BANKING",
+        2: "TELECOMMUNICATIONS",
+        3: "INSURANCE",
+        4: "HEALTHCARE",
+        5: "TRANSPORTATION",
+        6: "POWER",
+        7: "E-COMMERCE",
+        8: "PUBLIC SECTOR",
+        9: "HOSPITALITY",
+        632: "REAL ESTATE",
+        633: "EDUCATION",
+        634: "SPORTS/ ENTERTAINMENT",
+    }
+
+    output = dataframe.copy()
+    output["sect"] = pd.to_numeric(output["sect"], errors="coerce").astype("Int64")
+    output["sector_name"] = output["sect"].map(sector_map)
+    return output
+
+
 @asset(
     metadata={"filename": "clean_stage12/stage_12_output.csv"},
     deps=["ncsi_stage_11_output"],
@@ -773,5 +803,16 @@ def ncsi_stage_14_output(
 ) -> pd.DataFrame:
     """Stage-14 output with sector-level aggregated CX scores."""
     return aggregate_sector_scores(ncsi_stage_13_output)
+
+
+@asset(
+    metadata={"filename": "clean_stage15/stage_15_output.csv"},
+    deps=["ncsi_stage_14_output"],
+)
+def ncsi_stage_15_output(
+    ncsi_companies_dataset: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-15 output with sector_name added to companies dataset."""
+    return add_sector_name(ncsi_companies_dataset)
 
 

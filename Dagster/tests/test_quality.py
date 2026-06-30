@@ -786,5 +786,82 @@ class TestStage14Output(unittest.TestCase):
         )
 
 
+class TestStage15Output(unittest.TestCase):
+    def test_stage15_output_matches_expected_sector_name_mapping_and_format(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage3_companies_path = datasets_dir / "clean_stage3" / "companies_dataset.csv"
+        stage15_path = datasets_dir / "clean_stage15" / "stage_15_output.csv"
+
+        self.assertTrue(
+            stage3_companies_path.exists(),
+            msg=(
+                f"Expected Stage 3 companies dataset to exist at '{stage3_companies_path}', "
+                "but it was not found."
+            ),
+        )
+        self.assertEqual(
+            stage15_path.name,
+            "stage_15_output.csv",
+            msg="Expected Stage 15 final output to be labeled as 'stage_15_output.csv'.",
+        )
+        self.assertTrue(
+            stage15_path.exists(),
+            msg=f"Expected stage 15 output file to exist at '{stage15_path}', but it was not found.",
+        )
+
+        stage3_companies = pd.read_csv(stage3_companies_path)
+        stage15 = pd.read_csv(stage15_path)
+
+        expected_columns = [*list(stage3_companies.columns), "sector_name"]
+        self.assertListEqual(
+            list(stage15.columns),
+            expected_columns,
+            msg=(
+                "Expected stage_15_output.csv to preserve Stage 3 companies columns and append "
+                "sector_name."
+            ),
+        )
+
+        self.assertEqual(
+            len(stage15),
+            len(stage3_companies),
+            msg="Expected stage_15_output.csv to preserve the same number of rows as companies_dataset.csv.",
+        )
+
+        sector_map = {
+            1: "BANKING",
+            2: "TELECOMMUNICATIONS",
+            3: "INSURANCE",
+            4: "HEALTHCARE",
+            5: "TRANSPORTATION",
+            6: "POWER",
+            7: "E-COMMERCE",
+            8: "PUBLIC SECTOR",
+            9: "HOSPITALITY",
+            632: "REAL ESTATE",
+            633: "EDUCATION",
+            634: "SPORTS/ ENTERTAINMENT",
+        }
+
+        expected = stage3_companies.copy()
+        expected["sect"] = pd.to_numeric(expected["sect"], errors="coerce").astype("Int64")
+        expected["sector_name"] = expected["sect"].map(sector_map)
+
+        actual_sorted = stage15.sort_values(["company_id"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["company_id"]).reset_index(drop=True)
+
+        actual_sorted["sect"] = pd.to_numeric(actual_sorted["sect"], errors="coerce").astype("Int64")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 15 output mismatch",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
