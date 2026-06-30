@@ -683,7 +683,7 @@ def calculate_overall_cx_score(dataframe: pd.DataFrame) -> pd.DataFrame:
         "orde_of_impo_7",
     ]
     for column in numeric_columns:
-        output[column] = pd.to_numeric(output[column], errors="coerce")
+        output[column] = pd.to_numeric(output[column], errors="coerce").fillna(0)
 
     output["weighted_numerator"] = (
         output[trust_column] * output["orde_of_impo"]
@@ -743,6 +743,12 @@ def aggregate_sector_scores(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+@asset(metadata={"filename": "assigned_companies.csv"})
+def assigned_companies(context) -> pd.DataFrame:
+    """Load the assigned companies lookup used for subsector aggregation."""
+    return context.resources.io_manager.read_csv("assigned_companies.csv")
+
+
 def add_sector_name(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Add sector_name to companies dataset using sect code mapping."""
     dataframe = _unwrap_tuple(dataframe)
@@ -770,6 +776,42 @@ def add_sector_name(dataframe: pd.DataFrame) -> pd.DataFrame:
     output["sect"] = pd.to_numeric(output["sect"], errors="coerce").astype("Int64")
     output["sector_name"] = output["sect"].map(sector_map)
     return output
+
+
+def aggregate_subsector_scores(
+    stage13_dataframe: pd.DataFrame,
+    assigned_companies_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """Aggregate overall CX scores by subsector using the assigned companies lookup."""
+    stage13_dataframe = _unwrap_tuple(stage13_dataframe)
+    assigned_companies_dataframe = _unwrap_tuple(assigned_companies_dataframe)
+
+    required_stage13_columns = {"company_id", "overall_cx_score"}
+    missing_stage13 = required_stage13_columns.difference(stage13_dataframe.columns)
+    if missing_stage13:
+        raise KeyError(f"Missing required columns from stage-13 output: {sorted(missing_stage13)}")
+
+    required_lookup_columns = {"company_id", "subsector"}
+    missing_lookup = required_lookup_columns.difference(assigned_companies_dataframe.columns)
+    if missing_lookup:
+        raise KeyError(f"Missing required columns from assigned_companies.csv: {sorted(missing_lookup)}")
+
+    joined = stage13_dataframe.merge(
+        assigned_companies_dataframe[["company_id", "subsector"]],
+        on="company_id",
+        how="left",
+    )
+
+    if joined["subsector"].isnull().any():
+        raise ValueError("Some stage-13 rows could not be mapped to a subsector.")
+
+    joined["overall_cx_score"] = pd.to_numeric(joined["overall_cx_score"], errors="coerce")
+
+    return (
+        joined.groupby("subsector", as_index=False)["overall_cx_score"]
+        .mean()
+        .rename(columns={"overall_cx_score": "cx_score"})
+    )
 
 
 @asset(
@@ -814,5 +856,17 @@ def ncsi_stage_15_output(
 ) -> pd.DataFrame:
     """Stage-15 output with sector_name added to companies dataset."""
     return add_sector_name(ncsi_companies_dataset)
+
+
+@asset(
+    metadata={"filename": "clean_stage16/stage_16_output.csv"},
+    deps=["ncsi_stage_15_output"],
+)
+def ncsi_stage_16_output(
+    ncsi_stage_13_output: pd.DataFrame,
+    assigned_companies: pd.DataFrame,
+) -> pd.DataFrame:
+    """Stage-16 output with overall_cx_score aggregated by subsector."""
+    return aggregate_subsector_scores(ncsi_stage_13_output, assigned_companies)
 
 

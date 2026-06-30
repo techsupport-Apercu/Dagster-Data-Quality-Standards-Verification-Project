@@ -863,5 +863,93 @@ class TestStage15Output(unittest.TestCase):
         )
 
 
+class TestStage16Output(unittest.TestCase):
+    def test_stage16_output_matches_expected_subsector_scores_and_format(self):
+        datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
+        stage13_path = datasets_dir / "clean_stage13" / "stage_13_output.csv"
+        assigned_companies_path = datasets_dir / "assigned_companies.csv"
+        stage16_path = datasets_dir / "clean_stage16" / "stage_16_output.csv"
+
+        self.assertTrue(
+            stage13_path.exists(),
+            msg=f"Expected stage 13 output file to exist at '{stage13_path}', but it was not found.",
+        )
+        self.assertTrue(
+            assigned_companies_path.exists(),
+            msg=(
+                f"Expected assigned companies lookup to exist at '{assigned_companies_path}', but it was not found."
+            ),
+        )
+        self.assertEqual(
+            stage16_path.name,
+            "stage_16_output.csv",
+            msg="Expected Stage 16 final output to be labeled as 'stage_16_output.csv'.",
+        )
+        self.assertTrue(
+            stage16_path.exists(),
+            msg=f"Expected stage 16 output file to exist at '{stage16_path}', but it was not found.",
+        )
+
+        stage13 = pd.read_csv(stage13_path)
+        assigned_companies = pd.read_csv(assigned_companies_path)
+        stage16 = pd.read_csv(stage16_path)
+
+        self.assertListEqual(
+            list(stage16.columns),
+            ["subsector", "cx_score"],
+            msg="Expected stage_16_output.csv to strictly follow columns: subsector, cx_score.",
+        )
+
+        for column in ["company_id", "overall_cx_score"]:
+            self.assertIn(column, stage13.columns, msg=f"Expected '{column}' to exist in stage_13_output.csv.")
+
+        for column in ["company_id", "subsector"]:
+            self.assertIn(
+                column,
+                assigned_companies.columns,
+                msg=f"Expected '{column}' to exist in assigned_companies.csv.",
+            )
+
+        expected = stage13.merge(
+            assigned_companies[["company_id", "subsector"]],
+            on="company_id",
+            how="left",
+        )
+
+        self.assertFalse(
+            expected["subsector"].isnull().any(),
+            msg="Expected every Stage 13 row to map to a subsector in assigned_companies.csv.",
+        )
+
+        expected["overall_cx_score"] = pd.to_numeric(expected["overall_cx_score"], errors="coerce")
+        expected = (
+            expected.groupby("subsector", as_index=False)["overall_cx_score"]
+            .mean()
+            .rename(columns={"overall_cx_score": "cx_score"})
+        )
+
+        self.assertEqual(
+            len(stage16),
+            len(expected),
+            msg="Expected one Stage 16 output row per subsector.",
+        )
+
+        actual_sorted = stage16.sort_values(["subsector"]).reset_index(drop=True)
+        expected_sorted = expected.sort_values(["subsector"]).reset_index(drop=True)
+
+        actual_sorted["cx_score"] = pd.to_numeric(actual_sorted["cx_score"], errors="coerce")
+        expected_sorted["cx_score"] = pd.to_numeric(expected_sorted["cx_score"], errors="coerce")
+
+        pdt.assert_frame_equal(
+            actual_sorted,
+            expected_sorted,
+            check_dtype=False,
+            check_exact=False,
+            rtol=1e-9,
+            atol=1e-9,
+            obj="Stage 16 output mismatch",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
