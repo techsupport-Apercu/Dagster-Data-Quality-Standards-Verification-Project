@@ -661,7 +661,7 @@ class TestStage13Output(unittest.TestCase):
 
         expected = stage9.copy()
         for column in weighted_columns:
-            expected[column] = pd.to_numeric(expected[column], errors="coerce")
+            expected[column] = pd.to_numeric(expected[column], errors="coerce").fillna(0)
 
         expected["weighted_numerator"] = (
             expected[trust_column] * expected["orde_of_impo"]
