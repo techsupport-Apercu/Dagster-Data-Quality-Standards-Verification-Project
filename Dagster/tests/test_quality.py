@@ -4,21 +4,7 @@ import unittest
 import pandas as pd
 import pandas.testing as pdt
 
-from data_quality_checker.assets import (
-    add_impr_on_cust_sentiment,
-    add_nps_category,
-    attach_company_ids,
-    build_companies_dataset,
-    build_short_column_mapping,
-    classify_sentiment,
-    classify_nps_category,
-    clean_comp_inte_with_column,
-    split_channels_of_interaction,
-    classify_age_category,
-    add_age_category,
-    classify_income_category,
-    add_income_category,
-)
+import data_quality_checker.assets
 
 
 class TestQuality(unittest.TestCase):
@@ -27,7 +13,7 @@ class TestQuality(unittest.TestCase):
         source_path = datasets_dir / "datadump.csv"
         source_columns = list(pd.read_csv(source_path, nrows=0).columns)
 
-        mapping = build_short_column_mapping(source_columns)
+        mapping = data_quality_checker.assets.build_short_column_mapping(source_columns)
 
         self.assertEqual(len(mapping), len(source_columns))
         self.assertEqual(len(set(mapping.values())), len(source_columns))
@@ -49,7 +35,7 @@ class TestCompInteWithCleaning(unittest.TestCase):
             }
         )
 
-        cleaned = clean_comp_inte_with_column(source)
+        cleaned = data_quality_checker.assets.clean_comp_inte_with_column(source)
 
         self.assertFalse(cleaned["comp_inte_with"].isnull().any())
         self.assertTrue(cleaned["comp_inte_with"].eq(cleaned["comp_inte_with"].str.upper()).all())
@@ -60,7 +46,7 @@ class TestCompInteWithCleaning(unittest.TestCase):
         source_path = datasets_dir / "clean_stage1" / "stage_1_ouput.csv"
         source = pd.read_csv(source_path)
 
-        cleaned = clean_comp_inte_with_column(source)
+        cleaned = data_quality_checker.assets.clean_comp_inte_with_column(source)
 
         self.assertIn("comp_inte_with", cleaned.columns)
         self.assertFalse(cleaned["comp_inte_with"].isnull().any())
@@ -77,7 +63,7 @@ class TestStage3CompanyOutputs(unittest.TestCase):
             }
         )
 
-        companies = build_companies_dataset(stage2)
+        companies = data_quality_checker.assets.build_companies_dataset(stage2)
 
         self.assertEqual(companies["comp_inte_with"].nunique(), len(companies))
         self.assertEqual(companies["company_id"].nunique(), len(companies))
@@ -89,8 +75,8 @@ class TestStage3CompanyOutputs(unittest.TestCase):
         stage2_path = datasets_dir / "clean_stage2" / "stage_2_ouput.csv"
         stage2 = pd.read_csv(stage2_path)
 
-        companies = build_companies_dataset(stage2)
-        stage3 = attach_company_ids(stage2, companies)
+        companies = data_quality_checker.assets.build_companies_dataset(stage2)
+        stage3 = data_quality_checker.assets.attach_company_ids(stage2, companies)
 
         self.assertIn("company_id", stage3.columns)
         self.assertFalse(stage3["company_id"].isnull().any())
@@ -102,16 +88,16 @@ class TestStage3CompanyOutputs(unittest.TestCase):
 
 class TestStage4SentimentOutputs(unittest.TestCase):
     def test_classify_sentiment_labels(self):
-        self.assertEqual(classify_sentiment("This service is excellent and amazing"), "POSITIVE")
-        self.assertEqual(classify_sentiment("This service is awful and terrible"), "NEGATIVE")
-        self.assertEqual(classify_sentiment(""), "NEUTRAL")
+        self.assertEqual(data_quality_checker.assets.classify_sentiment("This service is excellent and amazing"), "POSITIVE")
+        self.assertEqual(data_quality_checker.assets.classify_sentiment("This service is awful and terrible"), "NEGATIVE")
+        self.assertEqual(data_quality_checker.assets.classify_sentiment(""), "NEUTRAL")
 
     def test_stage4_adds_sentiment_column_for_stage3_rows(self):
         datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
         stage3_path = datasets_dir / "clean_stage3" / "stage_3_ouput.csv"
         stage3 = pd.read_csv(stage3_path)
 
-        stage4 = add_impr_on_cust_sentiment(stage3)
+        stage4 = data_quality_checker.assets.add_impr_on_cust_sentiment(stage3)
 
         self.assertIn("impr_on_cust_sentiment", stage4.columns)
         self.assertEqual(len(stage4), len(stage3))
@@ -122,16 +108,16 @@ class TestStage4SentimentOutputs(unittest.TestCase):
 
 class TestStage5NpsOutputs(unittest.TestCase):
     def test_classify_nps_category(self):
-        self.assertEqual(classify_nps_category(10), "promoter")
-        self.assertEqual(classify_nps_category(8), "passive")
-        self.assertEqual(classify_nps_category(3), "detractor")
+        self.assertEqual(data_quality_checker.assets.classify_nps_category(10), "promoter")
+        self.assertEqual(data_quality_checker.assets.classify_nps_category(8), "passive")
+        self.assertEqual(data_quality_checker.assets.classify_nps_category(3), "detractor")
 
     def test_stage5_adds_nps_category_for_stage4_rows(self):
         datasets_dir = Path(__file__).resolve().parents[1] / "datasets"
         stage4_path = datasets_dir / "clean_stage4" / "stage_4_ouput.csv"
         stage4 = pd.read_csv(stage4_path)
 
-        stage5 = add_nps_category(stage4)
+        stage5 = data_quality_checker.assets.add_nps_category(stage4)
 
         self.assertIn("nps_category", stage5.columns)
         self.assertEqual(len(stage5), len(stage4))
@@ -148,7 +134,7 @@ class TestStage6ChannelOutputs(unittest.TestCase):
                 "chan_of_inte": ["In Person, Email", "Website,In Person,", None],
             }
         )
-        result = split_channels_of_interaction(source)
+        result = data_quality_checker.assets.split_channels_of_interaction(source)
         self.assertEqual(len(result), 4)
         self.assertEqual(list(result["i"]), [1, 1, 2, 2])
         self.assertEqual(list(result["chan_of_inte"]), ["In Person", "Email", "Website", "In Person"])
@@ -158,7 +144,7 @@ class TestStage6ChannelOutputs(unittest.TestCase):
         stage5_path = datasets_dir / "clean_stage5" / "stage_5_ouput.csv"
         stage5 = pd.read_csv(stage5_path)
 
-        result = split_channels_of_interaction(stage5)
+        result = data_quality_checker.assets.split_channels_of_interaction(stage5)
         self.assertTrue(set(["i", "chan_of_inte"]).issubset(result.columns))
         self.assertEqual(len(result.columns), 2)
         self.assertFalse(result["chan_of_inte"].isnull().any())
@@ -569,8 +555,14 @@ class TestStage12Output(unittest.TestCase):
             msg="Expected stage_12_output.csv to strictly follow columns: State, Count.",
         )
 
+        self.assertFalse(
+            stage12["State"].isnull().any(),
+            msg="Expected stage_12_output.csv to contain no null values in State.",
+        )
+
         expected = (
-            stage8.groupby("regi", dropna=False)
+            stage8.dropna(subset=["regi"])
+            .groupby("regi", dropna=False)
             .size()
             .reset_index(name="Count")
             .rename(columns={"regi": "State"})

@@ -625,7 +625,8 @@ def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Extract region data and generate instance counts."""
     dataframe = _unwrap_tuple(dataframe)
     return (
-        dataframe.groupby("regi", dropna=False)
+        dataframe.dropna(subset=["regi"])
+        .groupby("regi", dropna=False)
         .size()
         .reset_index(name="Count")
         .rename(columns={"regi": "State"})
