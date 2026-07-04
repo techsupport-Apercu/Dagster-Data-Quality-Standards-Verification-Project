@@ -16,7 +16,8 @@ dagster_home/
 
 # IDE files
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .qodo/
 
 # Jupyter files
