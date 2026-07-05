@@ -18,6 +18,7 @@ LOCAL_SENTIMENT_MODEL_DIR = (
     / "models"
     / "cardiffnlp-twitter-roberta-base-sentiment-latest"
 )
+REMOTE_SENTIMENT_MODEL_ID = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 
 
 def build_short_column_mapping(columns: list[str], max_length: int = 18) -> dict[str, str]:
@@ -182,18 +183,54 @@ def attach_company_ids(stage2_dataframe: pd.DataFrame, companies_dataset: pd.Dat
 @lru_cache(maxsize=1)
 def _get_sentiment_classifier():
     """Create and cache the CardiffNLP Twitter-RoBERTa sentiment pipeline."""
-    if not (LOCAL_SENTIMENT_MODEL_DIR / "config.json").exists():
-        raise FileNotFoundError(
-            "Local sentiment model not found. Run scripts/download_cardiffnlp_model.py first. "
-            f"Expected model files under: {LOCAL_SENTIMENT_MODEL_DIR}"
-        )
-
-    return pipeline(
-        task="sentiment-analysis",
-        model=str(LOCAL_SENTIMENT_MODEL_DIR),
-        tokenizer=str(LOCAL_SENTIMENT_MODEL_DIR),
-        local_files_only=True,
+    has_config = (LOCAL_SENTIMENT_MODEL_DIR / "config.json").exists()
+    has_tokenizer = any(
+        (LOCAL_SENTIMENT_MODEL_DIR / name).exists()
+        for name in ("tokenizer.json", "tokenizer_config.json", "vocab.json")
     )
+    has_weights = any(
+        (LOCAL_SENTIMENT_MODEL_DIR / name).exists()
+        for name in ("model.safetensors", "pytorch_model.bin")
+    )
+
+    if has_config and has_tokenizer and has_weights:
+        try:
+            return pipeline(
+                task="sentiment-analysis",
+                model=str(LOCAL_SENTIMENT_MODEL_DIR),
+                tokenizer=str(LOCAL_SENTIMENT_MODEL_DIR),
+                local_files_only=True,
+            )
+        except Exception as error:
+            raise RuntimeError(
+                "Failed to load local sentiment model files. "
+                "Re-download the model with scripts/download_cardiffnlp_model.py. "
+                f"Model directory: {LOCAL_SENTIMENT_MODEL_DIR}\nOriginal error: {error}"
+            ) from error
+
+    missing = []
+    if not has_config:
+        missing.append("config.json")
+    if not has_tokenizer:
+        missing.append("tokenizer files (tokenizer.json/tokenizer_config.json/vocab.json)")
+    if not has_weights:
+        missing.append("model weights (model.safetensors or pytorch_model.bin)")
+
+    # Fallback: allow loading from Hugging Face if local files are incomplete.
+    try:
+        return pipeline(
+            task="sentiment-analysis",
+            model=REMOTE_SENTIMENT_MODEL_ID,
+            tokenizer=REMOTE_SENTIMENT_MODEL_ID,
+            local_files_only=False,
+        )
+    except Exception as error:
+        raise FileNotFoundError(
+            "Local sentiment model files are incomplete and remote fallback failed. "
+            f"Missing: {', '.join(missing)}. "
+            "Run scripts/download_cardiffnlp_model.py to populate local model files. "
+            f"Expected model directory: {LOCAL_SENTIMENT_MODEL_DIR}\nOriginal error: {error}"
+        ) from error
 
 
 def classify_sentiment(text: str) -> str:
@@ -376,6 +413,7 @@ def split_channels_of_interaction(dataframe: pd.DataFrame) -> pd.DataFrame:
     df = df.explode("chan_of_inte")
     df["chan_of_inte"] = df["chan_of_inte"].str.strip()
     df = df[df["chan_of_inte"] != ""]
+    df = df.drop_duplicates(subset=["i", "chan_of_inte"]).reset_index(drop=True)
     return df
 
 
@@ -505,6 +543,18 @@ def convert_to_percentages(dataframe: pd.DataFrame) -> pd.DataFrame:
         "orde_of_impo_6",
         "orde_of_impo_7",
     ]
+
+    if "enga_with_cust" in output.columns:
+        raw_values = output["enga_with_cust"]
+        empty_mask = raw_values.isna() | raw_values.astype(str).str.strip().eq("")
+        numeric_values = pd.to_numeric(raw_values, errors="coerce")
+        median_value = numeric_values[~empty_mask].median()
+
+        if pd.notna(median_value):
+            numeric_values.loc[empty_mask] = median_value
+
+        output["enga_with_cust"] = numeric_values
+
     for col in base_7_cols:
         if col in output.columns:
             output[col] = (pd.to_numeric(output[col], errors="coerce") / 7.0) * 100.0
