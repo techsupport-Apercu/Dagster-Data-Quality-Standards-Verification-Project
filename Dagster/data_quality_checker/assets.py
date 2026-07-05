@@ -674,8 +674,18 @@ def ncsi_stage_11_output(
 def create_states_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Extract region data and generate instance counts."""
     dataframe = _unwrap_tuple(dataframe)
+    normalized = dataframe.copy()
+    normalized["regi"] = (
+        normalized["regi"]
+        .astype("string")
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+        .str.upper()
+    )
+
     return (
-        dataframe.dropna(subset=["regi"])
+        normalized.dropna(subset=["regi"])
+        .query("regi != ''")
         .groupby("regi", dropna=False)
         .size()
         .reset_index(name="Count")
