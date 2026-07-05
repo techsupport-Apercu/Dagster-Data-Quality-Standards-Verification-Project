@@ -519,7 +519,7 @@ def ncsi_stage_8_output(
 
 
 def convert_to_percentages(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Convert specific columns to percentages based on their base scale (7 or 8)."""
+    """Normalize specific columns to a 0-1 scale based on their base scale (7 or 8)."""
     dataframe = _unwrap_tuple(dataframe)
     output = dataframe.copy()
     base_7_cols = [
@@ -557,10 +557,10 @@ def convert_to_percentages(dataframe: pd.DataFrame) -> pd.DataFrame:
 
     for col in base_7_cols:
         if col in output.columns:
-            output[col] = (pd.to_numeric(output[col], errors="coerce") / 7.0) * 100.0
+            output[col] = pd.to_numeric(output[col], errors="coerce") / 7.0
     for col in base_8_cols:
         if col in output.columns:
-            output[col] = (pd.to_numeric(output[col], errors="coerce") / 8.0) * 100.0
+            output[col] = pd.to_numeric(output[col], errors="coerce") / 8.0
     return output
 
 
